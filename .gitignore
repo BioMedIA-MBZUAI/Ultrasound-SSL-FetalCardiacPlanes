@@ -1,0 +1,9 @@
+.vscode
+__pycache__
+*.ipynb
+
+weights/*
+hypotheses/*
+
+!README.md
+!readme.md

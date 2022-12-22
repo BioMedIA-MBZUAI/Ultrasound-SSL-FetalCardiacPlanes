@@ -1,0 +1,7 @@
+numpy
+torch
+torchvision
+torch-summary
+scipy
+tqdm
+h5py

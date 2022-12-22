@@ -1,1 +1,1 @@
-# ssl-us
+# Self Supervised Learning for Ultra-Sound Images
