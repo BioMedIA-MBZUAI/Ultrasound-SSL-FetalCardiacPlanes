@@ -10,13 +10,21 @@ def LOG2CSV(datalist, csv_file, flag = 'a'):
         writer.writerow(datalist)
     csvFile.close()
 
-
-def LOG2DICTXT(stats, file_path, flag = 'a'):
+def LOG2TXT(text, file_path, flag = 'a', console= True):
     '''
     stats: dictionary object with stats to be logged
     '''
-    with open(file_path, 'a', buffering=1) as stats_file:
-        print(json.dumps(stats))
-        print(json.dumps(stats), file=stats_file)
+    with open(file_path, 'a', buffering=1) as txt_file:
+        if console: print(text)
+        print(text, file=txt_file)
+
+
+def LOG2DICTXT(dic, file_path, flag = 'a', console= True):
+    '''
+    stats: dictionary object with stats to be logged
+    '''
+    with open(file_path, 'a', buffering=1) as txt_file:
+        if console: print(json.dumps(dic))
+        print(json.dumps(dic), file=txt_file)
 
 
