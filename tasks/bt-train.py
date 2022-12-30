@@ -14,9 +14,10 @@ import torch
 
 sys.path.append(os.getcwd())
 import utilities.runUtils as rutl
+import utilities.logUtils as lutl
 from algorithms.lars_optim import LARS, adjust_learning_rate
 from algorithms.barlows_twin import BarlowTwins
-from datacode.imagenet_data import classify_dataloader
+from datacode.imagenet_data import getBarlowTwinDataloader
 
 
 print(f"Pytorch version: {torch.__version__}")
@@ -28,7 +29,7 @@ print("Device Used:", device)
 
 parser = argparse.ArgumentParser(description='Barlow Twins Training')
 
-parser.add_argument('--data', default="/home/joseph.benjamin/WERK/data/cifar-100-python/",
+parser.add_argument('--data', default="/home/user/WERK/data/",
                     type=str, metavar='DATADIR',
                     help='path to dataset')
 parser.add_argument('--workers', default=4, type=int, metavar='N',
@@ -52,7 +53,7 @@ parser.add_argument('--print-freq', default=100, type=int, metavar='N',
 parser.add_argument('--checkpoint-dir', default='./hypotheses/exp_temp/', type=str,
                     metavar='DIR', help='path to checkpoint directory')
 ### -----
-parser.add_argument('--load_json', default='hypotheses/config/bt_train_cfg.json', type=str, metavar='DIR',
+parser.add_argument('--load_json', default='hypotheses/config/bt-train-cfg.json', type=str, metavar='DIR',
     help='Load settings from file in json format. Command line options override values in file.')
 
 args = parser.parse_args()
@@ -80,7 +81,6 @@ def simple_main():
     gpu = 0
     torch.cuda.set_device(gpu)
     torch.backends.cudnn.benchmark = True
-    stats_file = open(args.checkpoint_dir +'/stats.txt', 'a', buffering=1)
 
     model = BarlowTwins(args).cuda(gpu)
 
@@ -88,26 +88,28 @@ def simple_main():
                      weight_decay_filter=True,
                      lars_adaptation_filter=True)
 
-    # automatically resume from checkpoint if it exists
+    dataloader,_ = getBarlowTwinDataloader(args.data, args.batch_size, args.workers)
+
+    ### automatically resume from checkpoint if it exists
     if os.path.exists(args.checkpoint_dir +'/checkpoint.pth'):
         ckpt = torch.load(args.checkpoint_dir+'/checkpoint.pth',
                           map_location='cpu')
         start_epoch = ckpt['epoch']
         model.load_state_dict(ckpt['model'])
         optimizer.load_state_dict(ckpt['optimizer'])
+        print("Restarting Training from EPOCH:{} of {}",start_epoch, args.checkpoint_dir )
     else:
         start_epoch = 0
 
 
-    loader = classify_dataloader(args.data, args.batch_size, args.workers)
-
+    ### Training Routine
     start_time = time.time()
     scaler = torch.cuda.amp.GradScaler() # for mixed precision
     for epoch in range(start_epoch, args.epochs):
-        for step, ((y1, y2), _) in enumerate(loader, start=epoch * len(loader)):
+        for step, ((y1, y2), _) in enumerate(dataloader, start=epoch * len(dataloader)):
             y1 = y1.cuda(gpu, non_blocking=True)
             y2 = y2.cuda(gpu, non_blocking=True)
-            adjust_learning_rate(args, optimizer, loader, step)
+            adjust_learning_rate(args, optimizer, dataloader, step)
             optimizer.zero_grad()
             ## with mixed precision
             with torch.cuda.amp.autocast():
@@ -117,20 +119,18 @@ def simple_main():
             scaler.update()
             if step % args.print_freq == 0:
                 stats = dict(epoch=epoch, step=step,
-                                lr_weights=optimizer.param_groups[0]['lr'],
-                                lr_biases=optimizer.param_groups[1]['lr'],
-                                loss=loss.item(),
-                                time=int(time.time() - start_time))
-                print(json.dumps(stats))
-                print(json.dumps(stats), file=stats_file)
+                             lr_weights=optimizer.param_groups[0]['lr'],
+                             lr_biases=optimizer.param_groups[1]['lr'],
+                             loss=loss.item(),
+                             time=int(time.time() - start_time))
+                lutl.LOG2DICTXT(stats, args.checkpoint_dir +'/stats.txt')
+
         # save checkpoint
         state = dict(epoch=epoch + 1, model=model.state_dict(),
                         optimizer=optimizer.state_dict())
         torch.save(state, args.checkpoint_dir +'/checkpoint.pth')
     # save final model
-    torch.save(model.module.backbone.state_dict(),
-                args.checkpoint_dir +'/resnet50.pth')
-
+    torch.save(model.backbone.state_dict(), args.checkpoint_dir +'/finalweight.pth')
 
 
 if __name__ == '__main__':

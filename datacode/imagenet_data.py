@@ -29,7 +29,7 @@ class Solarization(object):
             return img
 
 
-class Transform:
+class BarlowTwinTransform:
     def __init__(self):
         self.img_sz = 32
         self.transform = transforms.Compose([
@@ -69,12 +69,12 @@ class Transform:
         return y1, y2
 
 
-def classify_dataloader(folder, batch_size, workers):
+def getBarlowTwinDataloader(folder, batch_size, workers):
 
-    dataset = torchvision.datasets.ImageFolder(folder, Transform()) #train
-
+    dataset = torchvision.datasets.ImageFolder(folder, BarlowTwinTransform()) #train
+    cls_idx = dataset.class_to_idx
     loader = torch.utils.data.DataLoader(
         dataset, batch_size=batch_size, num_workers=workers,
         pin_memory=True)
 
-    return loader
+    return loader, cls_idx
