@@ -141,7 +141,7 @@ class MultiImageDataFolders(VisionDataset):
 ## =============================================================================
 
 
-class CtClassifyTransform:
+class USClassifyTransform:
     def __init__(self):
         self.img_sz = 32
         self.transform = transforms.Compose([
@@ -155,7 +155,7 @@ class CtClassifyTransform:
         return y1
 
 
-def getCtClassifyDataloader(folders, batch_size, workers,
+def getUSClassifyDataloader(folders, batch_size, workers,
                             type_=None, # unused
                             ):
     is_valid_file = None
@@ -163,12 +163,12 @@ def getCtClassifyDataloader(folders, batch_size, workers,
     if isinstance(folders, list):
         ## TODO:
         dataset = MultiImageDataFolders(folders,
-            transform=CtClassifyTransform(),
+            transform=USClassifyTransform(),
             loader = default_loader,
             extensions = extensions,
             is_valid_file=is_valid_file )
     else:
-        dataset = torchvision.datasets.ImageFolder(folders, CtClassifyTransform()) #train
+        dataset = torchvision.datasets.ImageFolder(folders, USClassifyTransform()) #train
 
     # print(dataset.class_to_idx)
     data_info = { "#ClassId": dataset.class_to_idx ,
