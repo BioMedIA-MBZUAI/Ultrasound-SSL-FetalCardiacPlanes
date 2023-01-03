@@ -2,8 +2,10 @@
 __pycache__
 *.ipynb
 
+configs/*
 weights/*
 hypotheses/*
+todo.txt
 
 !README.md
 !readme.md

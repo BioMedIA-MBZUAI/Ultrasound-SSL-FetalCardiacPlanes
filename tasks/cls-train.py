@@ -17,9 +17,8 @@ sys.path.append(os.getcwd())
 import utilities.runUtils as rutl
 import utilities.logUtils as lutl
 from utilities.metricUtils import MultiClassMetrics
-from algorithms.lars_optim import LARS, adjust_learning_rate
 from algorithms.resnet import ClassifierNet
-from datacode.ctscan_data import CT_classify_dataloader
+from datacode.ultrasound_data import getUSClassifyDataloader
 from datacode.general_data import getCifar100Dataloader
 
 
@@ -35,13 +34,19 @@ epochs= 1000,
 batch_size= 2048,
 learning_rate= 0.2,
 weight_decay= 1e-6,
-classifier= [1024, 6],
+feature_extract = "resnet18", # "resnet34/50/101"
+featx_pretrain =  "DEFAULT",  # path-to-weights or None
+featx_dropout = 0,
+featx_freeze =  False,
+
+classifier = [1024, 6],
+clsfy_dropout = 0.5,
 checkpoint_dir= "hypotheses/dummypth/",
 )
 
 ### -----
 parser = argparse.ArgumentParser(description='Classification task')
-parser.add_argument('--load_json', default='hypotheses/config/cls-train-cfg.json', type=str, metavar='JSON',
+parser.add_argument('--load_json', default='configs/cls-train-cfg.json', type=str, metavar='JSON',
     help='Load settings from file in json format. Command line options override values in file.')
 
 args = parser.parse_args()
@@ -62,7 +67,6 @@ with open(gLogPath+"/exp_cfg.json", 'wt') as f:
 ### ============================================================================
 
 
-
 def simple_main():
     rutl.START_SEED()
     gpu = 0
@@ -76,11 +80,12 @@ def simple_main():
     lutl.LOG2TXT(f"Parameters:{rutl.count_train_param(model)}", gLogPath +'/misc.txt')
 
 
-    trainloader, cls_idx = getCifar100Dataloader(cfg.data,
+    trainloader, data_info = getUSClassifyDataloader(cfg.data,
                         cfg.batch_size, cfg.workers, type_='train' )
-    validloader, _ = getCifar100Dataloader(cfg.data,
+    validloader, _ = getUSClassifyDataloader(cfg.validation,
                         cfg.batch_size, cfg.workers, type_='valid')
-    lutl.LOG2DICTXT(cls_idx, gLogPath +'/misc.txt')
+    lutl.LOG2DICTXT(data_info, gLogPath +'/misc.txt')
+
 
     ## Automatically resume from checkpoint if it exists
     if os.path.exists(gWeightPath +'/checkpoint.pth'):
