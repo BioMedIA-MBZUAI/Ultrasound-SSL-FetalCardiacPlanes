@@ -22,7 +22,8 @@ class MultiClassMetrics():
         return skmetrics.accuracy_score(self.tgt, self.prd)
 
     def get_class_report(self):
-        return skmetrics.classification_report(self.tgt, self.prd, output_dict= True)
+        return skmetrics.classification_report(self.tgt, self.prd,
+                    output_dict= True)
 
     def get_stat_summary(self):
         pass

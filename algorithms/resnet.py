@@ -11,8 +11,10 @@ class ClassifierNet(nn.Module):
         rutl.START_SEED()
 
         self.args = args
-        self.backbone = torchvision.models.resnet50(zero_init_residual=True)
-        self.backbone.fc = nn.Identity() #remove fc of default arch
+
+        # Feature Extractor
+        self.backbone = self._load_resnet_backbone()
+        self.feat_dropout = nn.Dropout(p=self.args.featx_dropout)
 
         # Classifier
         sizes = [2048] + list(args.classifier)
@@ -21,12 +23,44 @@ class ClassifierNet(nn.Module):
             layers.append(nn.Linear(sizes[i], sizes[i + 1], bias=False))
             layers.append(nn.BatchNorm1d(sizes[i + 1]))
             layers.append(nn.ReLU(inplace=True))
+            layers.append(nn.Dropout(p=self.args.clsfy_dropout))
         layers.append(nn.Linear(sizes[-2], sizes[-1], bias=False))
 
         self.classifier = nn.Sequential(*layers)
 
+
     def forward(self, x):
         x = self.backbone(x)
+        x = self.feat_dropout(x)
         out = self.classifier(x)
 
         return out
+
+
+    def _load_resnet_backbone(self):
+
+        pretrain = "DEFAULT" if self.args.featx_pretrain == "DEFAULT" else None
+        if self.args.feature_extract == 'resnet18':
+            backbone = torchvision.models.resnet50(zero_init_residual=True,
+                                 weights=pretrain)
+        elif self.args.feature_extract == 'resnet50':
+            backbone = torchvision.models.resnet50(zero_init_residual=True,
+                                weights=pretrain)
+
+        # Change input Conv
+        # conv1_weight = torch.sum(backbone.conv1.weight, axis = 1).unsqueeze(1)
+        # backbone.conv1 = nn.Conv2d(1,  64, kernel_size=7, stride=2, padding=3, bias=False)
+
+        # with torch.no_grad():
+        #     backbone.conv1.weight.copy_(conv1_weight)
+
+
+        backbone.fc = nn.Identity() #remove fc of default arch
+
+        # freeze model
+        if self.args.featx_freeze:
+            print("Freezing Resnet weights ...")
+            for param in backbone.parameters():
+                param.requires_grad = False
+
+        return backbone
