@@ -32,6 +32,9 @@ cfg = rutl.ObjDict(
 data= "/home/USR/WERK/data/",
 epochs= 1000,
 batch_size= 2048,
+workers= 4,
+balance_class = True,
+
 learning_rate= 0.2,
 weight_decay= 1e-6,
 feature_extract = "resnet18", # "resnet34/50/101"
@@ -41,7 +44,9 @@ featx_freeze =  False,
 
 classifier = [1024, 6],
 clsfy_dropout = 0.5,
+
 checkpoint_dir= "hypotheses/dummypth/",
+restart_training=False
 )
 
 ### -----
@@ -56,12 +61,14 @@ if args.load_json:
         cfg.__dict__.update(json.load(f))
 
 ### ----------------------------------------------------------------------------
+if os.path.exists(cfg.checkpoint_dir) and (not cfg.restart_training):
+    raise Exception("CheckPoint folder already exists and restart_training not enabled; Somethings Wrong!")
 
 gLogPath = cfg.checkpoint_dir
 gWeightPath = cfg.checkpoint_dir + '/weights/'
 if not os.path.exists(gWeightPath): os.makedirs(gWeightPath)
 
-with open(gLogPath+"/exp_cfg.json", 'wt') as f:
+with open(gLogPath+"/exp_cfg.json", 'a') as f:
     json.dump(vars(cfg), f, indent=4)
 
 ### ============================================================================
@@ -81,20 +88,21 @@ def simple_main():
 
 
     trainloader, data_info = getUSClassifyDataloader(cfg.data,
-                        cfg.batch_size, cfg.workers, type_='train' )
-    validloader, _ = getUSClassifyDataloader(cfg.validation,
+                        cfg.batch_size, cfg.workers,  type_='train',
+                        balance_class=cfg.balance_class )
+    lutl.LOG2DICTXT(data_info, gLogPath +'/misc.txt')
+    validloader, data_info = getUSClassifyDataloader(cfg.validation,
                         cfg.batch_size, cfg.workers, type_='valid')
     lutl.LOG2DICTXT(data_info, gLogPath +'/misc.txt')
 
-
-    ## Automatically resume from checkpoint if it exists
+    ## Automatically resume from checkpoint if it exists and enabled
     if os.path.exists(gWeightPath +'/checkpoint.pth'):
         ckpt = torch.load(gWeightPath+'/checkpoint.pth',
                           map_location='cpu')
         start_epoch = ckpt['epoch']
         model.load_state_dict(ckpt['model'])
         optimizer.load_state_dict(ckpt['optimizer'])
-        print(f"Restarting Training from EPOCH:{start_epoch} of {cfg.checkpoint_dir}")
+        lutl.LOG2TXT(f"Restarting Training from EPOCH:{start_epoch} of {cfg.checkpoint_dir}",  gLogPath +'/misc.txt')
     else:
         start_epoch = 0
 
@@ -102,7 +110,8 @@ def simple_main():
     ### MODEL TRAINING
     start_time = time.time()
     best_acc = 0 ; best_loss = float('inf')
-    trainMetric = MultiClassMetrics(); validMetric = MultiClassMetrics()
+    trainMetric = MultiClassMetrics(gLogPath)
+    validMetric = MultiClassMetrics(gLogPath)
     scaler = torch.cuda.amp.GradScaler() # for mixed precision
     for epoch in range(start_epoch, cfg.epochs):
 
@@ -116,9 +125,12 @@ def simple_main():
             with torch.cuda.amp.autocast():
                 pred = model.forward(img)
                 loss = lossfn(pred, tgt)
+            ## END with
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
+            # loss.backward()
+            # optimizer.step()
             trainMetric.add_entry(torch.argmax(pred, dim=1), tgt, loss)
 
         ## save checkpoint states
@@ -126,16 +138,17 @@ def simple_main():
                         optimizer=optimizer.state_dict())
         torch.save(state, gWeightPath +'/checkpoint.pth')
 
-        ## ---- Validation Routine ----
 
+        ## ---- Validation Routine ----
         model.eval()
         with torch.no_grad():
             for img, tgt in tqdm(validloader):
                 img = img.to(device, non_blocking=True)
                 tgt = tgt.to(device, non_blocking=True)
-                with torch.cuda.amp.autocast():
-                    pred = model.forward(img)
-                    loss = lossfn(pred, tgt)
+                # with torch.cuda.amp.autocast():
+                pred = model.forward(img)
+                loss = lossfn(pred, tgt)
+                ## END with
                 validMetric.add_entry(torch.argmax(pred, dim=1), tgt, loss)
 
         ## Log Metrics
@@ -145,18 +158,24 @@ def simple_main():
                     validloss = validMetric.get_loss(),
                     validacc = validMetric.get_accuracy(), )
         lutl.LOG2DICTXT(stats, gLogPath+'/train-stats.txt')
-        detail_stat = dict( epoch=epoch, time=int(time.time() - start_time),
-                            validreport =  validMetric.get_class_report() )
-        lutl.LOG2DICTXT(detail_stat, gLogPath+'/validation-details.txt', console=False)
+
 
         ## save best model
+        best_flag = False
         if stats['validacc'] > best_acc:
             torch.save(model.state_dict(), gWeightPath +'/bestmodel.pth')
             best_acc = stats['validacc']
             best_loss = stats['validloss']
+            best_flag = True
+
+        ## Log detailed validation
+        detail_stat = dict( epoch=epoch, time=int(time.time() - start_time),
+                            best = best_flag,
+                            validreport =  validMetric.get_class_report() )
+        lutl.LOG2DICTXT(detail_stat, gLogPath+'/validation-details.txt', console=False)
 
         trainMetric.reset()
-        validMetric.reset()
+        validMetric.reset(best_flag)
 
 if __name__ == '__main__':
     simple_main()
