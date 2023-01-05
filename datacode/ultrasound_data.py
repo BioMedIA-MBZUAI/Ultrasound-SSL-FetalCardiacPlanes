@@ -3,6 +3,7 @@ from PIL import Image, ImageOps, ImageFilter
 
 from torch import nn, optim
 import torch
+from torch.utils.data import WeightedRandomSampler
 import torchvision
 import torchvision.transforms as transforms
 from torchvision.datasets import VisionDataset
@@ -139,41 +140,139 @@ class MultiImageDataFolders(VisionDataset):
 
 
 ## =============================================================================
+## Classification
+
+
+def get_balanced_samples_weight(images, nclasses):
+    """ Sample level weights fro balanced sampling statergy
+    """
+
+    n_images = len(images)
+    count_per_class = [0] * nclasses
+    for _, image_class in images:
+        count_per_class[image_class] += 1
+    weight_per_class = [0.] * nclasses
+    for i in range(nclasses):
+        weight_per_class[i] = float(n_images) / float(count_per_class[i])
+    weights = [0] * n_images
+    for idx, (image, image_class) in enumerate(images):
+        weights[idx] = weight_per_class[image_class]
+    return weights, weight_per_class
 
 
 class USClassifyTransform:
-    def __init__(self):
-        self.img_sz = 32
-        self.transform = transforms.Compose([
+    def __init__(self, infer = False):
+        self.img_size =  256
+
+        train_transform = transforms.Compose([
+            transforms.RandomResizedCrop(self.img_size, scale=(0.75, 1.0),
+                                interpolation=Image.BICUBIC),
+            transforms.RandomAutocontrast(p=0.6),
             transforms.RandomHorizontalFlip(p=0.5),
             transforms.RandomVerticalFlip(p=0.5),
             transforms.ToTensor(),
         ])
 
+        infer_transform = transforms.Compose([
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomVerticalFlip(p=0.5),
+            transforms.ToTensor(),
+        ])
+
+        if infer:
+            self.transform = infer_transform
+        else:
+            self.transform = train_transform
+
+
     def __call__(self, x):
-        y1 = self.transform(x)
-        return y1
+        y = self.transform(x)
+        return y
 
 
 def getUSClassifyDataloader(folders, batch_size, workers,
+                            balance_class = False,
                             type_=None, # unused
                             ):
-    is_valid_file = None
-    extensions = IMG_EXTENSIONS if is_valid_file is None else None
-    if isinstance(folders, list):
+    infer_f = False
+    shuffle = True
+    if type_ in ['valid', 'test', 'infer']:
+        infer_f = True
+        shuffle = False
+
+
+    if False and isinstance(folders, list):
         ## TODO:
+        is_valid_file = None
+        extensions = IMG_EXTENSIONS if is_valid_file is None else None
         dataset = MultiImageDataFolders(folders,
             transform=USClassifyTransform(),
             loader = default_loader,
             extensions = extensions,
             is_valid_file=is_valid_file )
     else:
-        dataset = torchvision.datasets.ImageFolder(folders, USClassifyTransform()) #train
+        dataset = torchvision.datasets.ImageFolder(folders,
+                        USClassifyTransform(infer_f))
 
     # print(dataset.class_to_idx)
-    data_info = { "#ClassId": dataset.class_to_idx ,
+    data_info = {"type": type_,
+                 "#ClassId": dataset.class_to_idx ,
                  "#DatasetSize": dataset.__len__() }
 
+    sampler = None
+    if balance_class:
+        samples_per_epoch = int(1.5 * len(dataset.imgs))
+        s_weight, freq = get_balanced_samples_weight(dataset.imgs, len(dataset.classes))
+        sampler = WeightedRandomSampler(s_weight, samples_per_epoch)
+        data_info["WeightedSampler"] = freq
+        shuffle = False
+
+    loader = torch.utils.data.DataLoader( dataset, shuffle = shuffle,
+                batch_size=batch_size, num_workers=workers, sampler = sampler,
+                drop_last= True, pin_memory=True)
+
+    return loader, data_info
+
+
+
+## =============================================================================
+## Barlow Twin
+
+class USBarlowTwinTransform:
+    def __init__(self):
+        self.img_size =  256
+        self.transform = transforms.Compose([
+            transforms.RandomResizedCrop(self.img_size, scale=(0.7, 1.0),
+                        interpolation=transforms.InterpolationMode.BICUBIC),
+            transforms.RandomAffine(degrees=(-180, 180), translate=(0.2, 0.2),
+                        interpolation=transforms.InterpolationMode.BICUBIC),
+            transforms.ColorJitter(brightness=0.5),
+            transforms.ToTensor(),
+
+        ])
+        self.transform_prime = transforms.Compose([
+            transforms.RandomResizedCrop(self.img_size, scale=(0.6, 1.0),
+                        interpolation=transforms.InterpolationMode.NEAREST),
+            transforms.RandomPerspective(distortion_scale=0.6, p=0.5,
+                        interpolation=transforms.InterpolationMode.NEAREST),
+            transforms.RandomAutocontrast(p=0.7),
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomVerticalFlip(p=0.5),
+            transforms.ToTensor(),
+
+        ])
+
+    def __call__(self, x):
+        y1 = self.transform(x)
+        y2 = self.transform_prime(x)
+        return y1, y2
+
+
+def getUSBarlowTwinDataloader(folder, batch_size, workers):
+
+    dataset = torchvision.datasets.ImageFolder(folder, USBarlowTwinTransform()) #train
+    data_info = { "#ClassId": dataset.class_to_idx ,
+                "#DatasetSize": dataset.__len__() }
     loader = torch.utils.data.DataLoader( dataset,
                 batch_size=batch_size, num_workers=workers,
                 drop_last= True, pin_memory=True)
