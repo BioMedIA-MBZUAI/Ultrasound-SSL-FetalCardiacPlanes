@@ -23,20 +23,19 @@ def split_image_folder(source_root, target_root, portion=2, ratio= [0.8, 0.2]):
         for j in range(begin, len(imnames)):
             outnames[j%portion].append(imnames[j])
         print(f"ClassFolder: {cf}, Count: {len(imnames)}")
+        print(f"ClassFolder: {cf}, Count: {len(imnames)}", file=target_root+"/split-info.txt")
+
         ipath_dir =  os.path.dirname(ipath)
         for o, grp in tqdm(enumerate(outnames)):
             print(f'Group-{o+1}:',len(grp))
+            print(f'Group-{o+1}:',len(grp), file=target_root+"/split-info.txt")
+
             opath = os.path.join(target_root, f"group{o+1}",cf)
             os.makedirs(opath, exist_ok = True)
             for g in grp:
                 shutil.copy(os.path.join(ipath_dir, g), opath)
 
     return None
-
-
-
-
-
 
 
 
