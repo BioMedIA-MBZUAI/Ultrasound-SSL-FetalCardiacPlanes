@@ -64,11 +64,11 @@ if args.load_json:
 if os.path.exists(cfg.checkpoint_dir) and (not cfg.restart_training):
     raise Exception("CheckPoint folder already exists and restart_training not enabled; Somethings Wrong!")
 
-gLogPath = cfg.checkpoint_dir
-gWeightPath = cfg.checkpoint_dir + '/weights/'
-if not os.path.exists(gWeightPath): os.makedirs(gWeightPath)
+cfg.gLogPath = cfg.checkpoint_dir
+cfg.gWeightPath = cfg.checkpoint_dir + '/weights/'
+if not os.path.exists(cfg.gWeightPath): os.makedirs(cfg.gWeightPath)
 
-with open(gLogPath+"/exp_cfg.json", 'a') as f:
+with open(cfg.gLogPath+"/exp_cfg.json", 'a') as f:
     json.dump(vars(cfg), f, indent=4)
 
 ### ============================================================================
@@ -84,25 +84,25 @@ def simple_main():
     lossfn = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=cfg.learning_rate,
                         weight_decay=cfg.weight_decay)
-    lutl.LOG2TXT(f"Parameters:{rutl.count_train_param(model)}", gLogPath +'/misc.txt')
+    lutl.LOG2TXT(f"Parameters:{rutl.count_train_param(model)}", cfg.gLogPath +'/misc.txt')
 
 
     trainloader, data_info = getUSClassifyDataloader(cfg.data,
                         cfg.batch_size, cfg.workers,  type_='train',
                         balance_class=cfg.balance_class )
-    lutl.LOG2DICTXT(data_info, gLogPath +'/misc.txt')
+    lutl.LOG2DICTXT(data_info, cfg.gLogPath +'/misc.txt')
     validloader, data_info = getUSClassifyDataloader(cfg.validation,
                         cfg.batch_size, cfg.workers, type_='valid')
-    lutl.LOG2DICTXT(data_info, gLogPath +'/misc.txt')
+    lutl.LOG2DICTXT(data_info, cfg.gLogPath +'/misc.txt')
 
     ## Automatically resume from checkpoint if it exists and enabled
-    if os.path.exists(gWeightPath +'/checkpoint.pth'):
-        ckpt = torch.load(gWeightPath+'/checkpoint.pth',
+    if os.path.exists(cfg.gWeightPath +'/checkpoint.pth'):
+        ckpt = torch.load(cfg.gWeightPath+'/checkpoint.pth',
                           map_location='cpu')
         start_epoch = ckpt['epoch']
         model.load_state_dict(ckpt['model'])
         optimizer.load_state_dict(ckpt['optimizer'])
-        lutl.LOG2TXT(f"Restarting Training from EPOCH:{start_epoch} of {cfg.checkpoint_dir}",  gLogPath +'/misc.txt')
+        lutl.LOG2TXT(f"Restarting Training from EPOCH:{start_epoch} of {cfg.checkpoint_dir}",  cfg.gLogPath +'/misc.txt')
     else:
         start_epoch = 0
 
@@ -110,8 +110,8 @@ def simple_main():
     ### MODEL TRAINING
     start_time = time.time()
     best_acc = 0 ; best_loss = float('inf')
-    trainMetric = MultiClassMetrics(gLogPath)
-    validMetric = MultiClassMetrics(gLogPath)
+    trainMetric = MultiClassMetrics(cfg.gLogPath)
+    validMetric = MultiClassMetrics(cfg.gLogPath)
     scaler = torch.cuda.amp.GradScaler() # for mixed precision
     for epoch in range(start_epoch, cfg.epochs):
 
@@ -136,7 +136,7 @@ def simple_main():
         ## save checkpoint states
         state = dict(epoch=epoch + 1, model=model.state_dict(),
                         optimizer=optimizer.state_dict())
-        torch.save(state, gWeightPath +'/checkpoint.pth')
+        torch.save(state, cfg.gWeightPath +'/checkpoint.pth')
 
 
         ## ---- Validation Routine ----
@@ -157,13 +157,13 @@ def simple_main():
                     trainacc = trainMetric.get_accuracy(),
                     validloss = validMetric.get_loss(),
                     validacc = validMetric.get_accuracy(), )
-        lutl.LOG2DICTXT(stats, gLogPath+'/train-stats.txt')
+        lutl.LOG2DICTXT(stats, cfg.gLogPath+'/train-stats.txt')
 
 
         ## save best model
         best_flag = False
         if stats['validacc'] > best_acc:
-            torch.save(model.state_dict(), gWeightPath +'/bestmodel.pth')
+            torch.save(model.state_dict(), cfg.gWeightPath +'/bestmodel.pth')
             best_acc = stats['validacc']
             best_loss = stats['validloss']
             best_flag = True
@@ -172,7 +172,7 @@ def simple_main():
         detail_stat = dict( epoch=epoch, time=int(time.time() - start_time),
                             best = best_flag,
                             validreport =  validMetric.get_class_report() )
-        lutl.LOG2DICTXT(detail_stat, gLogPath+'/validation-details.txt', console=False)
+        lutl.LOG2DICTXT(detail_stat, cfg.gLogPath+'/validation-details.txt', console=False)
 
         trainMetric.reset()
         validMetric.reset(best_flag)
