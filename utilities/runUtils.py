@@ -16,12 +16,22 @@ def START_SEED(seed=73):
 
 def load_pretrained(model, weight_path, flexible = False):
     if not weight_path:
+        print("No weight file to be loaded returning Model with Random weights")
         return model
 
-    pretrain_dict = torch.load(weight_path)
     model_dict = model.state_dict()
+    weight_dict = torch.load(weight_path)
+
+    if weight_dict.has_key('model'):
+        pretrain_dict = weight_dict['model']
+    else:
+        pretrain_dict = weight_dict
+
     if flexible:
         pretrain_dict = {k: v for k, v in pretrain_dict.items() if k in model_dict}
+    if not len(pretrain_dict):
+        raise Exception(f"No weight names match to be loaded; though file exits ! {weight_path}, Dict: {weight_dict}")
+
     print("Pretrained layers:", pretrain_dict.keys())
     model_dict.update(pretrain_dict)
     model.load_state_dict(model_dict)

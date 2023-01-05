@@ -12,8 +12,9 @@ def LOG2CSV(datalist, csv_file, flag = 'a'):
 
 def LOG2TXT(text, file_path, flag = 'a', console= True):
     '''
-    stats: dictionary object with stats to be logged
+    text: python object with stats to be logged
     '''
+    text = str(text)
     with open(file_path, 'a', buffering=1) as txt_file:
         if console: print(text)
         print(text, file=txt_file)
