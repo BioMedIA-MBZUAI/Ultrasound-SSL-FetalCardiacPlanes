@@ -39,18 +39,19 @@ class ClassifierNet(nn.Module):
 
     def _load_resnet_backbone(self):
 
-        pretrain = "DEFAULT" if self.args.featx_pretrain == "DEFAULT" else None
+        torch_pretrain = "DEFAULT" if self.args.featx_pretrain == "DEFAULT" else None
+
+
         if self.args.feature_extract == 'resnet18':
             backbone = torchvision.models.resnet50(zero_init_residual=True,
-                                 weights=pretrain)
+                                 weights=torch_pretrain)
         elif self.args.feature_extract == 'resnet50':
             backbone = torchvision.models.resnet50(zero_init_residual=True,
-                                weights=pretrain)
+                                weights=torch_pretrain)
 
         # Change input Conv
         # conv1_weight = torch.sum(backbone.conv1.weight, axis = 1).unsqueeze(1)
         # backbone.conv1 = nn.Conv2d(1,  64, kernel_size=7, stride=2, padding=3, bias=False)
-
         # with torch.no_grad():
         #     backbone.conv1.weight.copy_(conv1_weight)
 
