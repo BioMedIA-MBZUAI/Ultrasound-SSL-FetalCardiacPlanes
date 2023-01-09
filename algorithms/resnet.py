@@ -46,11 +46,11 @@ class ClassifierNet(nn.Module):
         if self.args.feature_extract == 'resnet18':
             backbone = torchvision.models.resnet18(zero_init_residual=True,
                                  weights=torch_pretrain)
-            outfeat_size = 2048
+            outfeat_size = 512
         elif self.args.feature_extract == 'resnet50':
             backbone = torchvision.models.resnet50(zero_init_residual=True,
                                 weights=torch_pretrain)
-            outfeat_size = 512
+            outfeat_size = 2048
         backbone.fc = nn.Identity() #remove fc of default arch
 
         # Change input Conv

@@ -29,7 +29,8 @@ print("Device Used:", device)
 
 ###============================= Configure and Setup ===========================
 cfg = rutl.ObjDict(
-data= "/home/USR/WERK/data/",
+data= "/home/USR/WERK/data/train",
+validation = "/home/USR/WERK/data/valid",
 epochs= 1000,
 batch_size= 2048,
 workers= 4,

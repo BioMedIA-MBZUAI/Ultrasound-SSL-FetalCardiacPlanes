@@ -273,7 +273,7 @@ def getUSBarlowTwinDataloader(folder, batch_size, workers):
     dataset = torchvision.datasets.ImageFolder(folder, USBarlowTwinTransform()) #train
     data_info = { "#ClassId": dataset.class_to_idx ,
                 "#DatasetSize": dataset.__len__() }
-    loader = torch.utils.data.DataLoader( dataset,
+    loader = torch.utils.data.DataLoader( dataset, shuffle=True,
                 batch_size=batch_size, num_workers=workers,
                 drop_last= True, pin_memory=True)
 
