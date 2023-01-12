@@ -62,39 +62,32 @@ if args.load_json:
         cfg.__dict__.update(json.load(f))
 
 ### ----------------------------------------------------------------------------
-if os.path.exists(cfg.checkpoint_dir) and (not cfg.restart_training):
-    raise Exception("CheckPoint folder already exists and restart_training not enabled; Somethings Wrong!")
-
 cfg.gLogPath = cfg.checkpoint_dir
 cfg.gWeightPath = cfg.checkpoint_dir + '/weights/'
 if not os.path.exists(cfg.gWeightPath): os.makedirs(cfg.gWeightPath)
-
-with open(cfg.gLogPath+"/exp_cfg.json", 'a') as f:
-    json.dump(vars(cfg), f, indent=4)
 
 ### ============================================================================
 
 
 def simple_main():
+
+    ### SETUP
     rutl.START_SEED()
     gpu = 0
     torch.cuda.set_device(gpu)
     torch.backends.cudnn.benchmark = True
+    if os.path.exists(cfg.checkpoint_dir) and (not cfg.restart_training):
+        raise Exception("CheckPoint folder already exists and restart_training not enabled; Somethings Wrong!")
+    with open(cfg.gLogPath+"/exp_cfg.json", 'a') as f:
+        json.dump(vars(cfg), f, indent=4)
 
+
+    ### MODEL, OPTIM
     model = ClassifierNet(cfg).cuda(gpu)
     lossfn = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=cfg.learning_rate,
                         weight_decay=cfg.weight_decay)
     lutl.LOG2TXT(f"Parameters:{rutl.count_train_param(model)}", cfg.gLogPath +'/misc.txt')
-
-
-    trainloader, data_info = getUSClassifyDataloader(cfg.data,
-                        cfg.batch_size, cfg.workers,  type_='train',
-                        balance_class=cfg.balance_class )
-    lutl.LOG2DICTXT(data_info, cfg.gLogPath +'/misc.txt')
-    validloader, data_info = getUSClassifyDataloader(cfg.validation,
-                        cfg.batch_size, cfg.workers, type_='valid')
-    lutl.LOG2DICTXT(data_info, cfg.gLogPath +'/misc.txt')
 
     ## Automatically resume from checkpoint if it exists and enabled
     if os.path.exists(cfg.gWeightPath +'/checkpoint.pth'):
@@ -106,6 +99,16 @@ def simple_main():
         lutl.LOG2TXT(f"Restarting Training from EPOCH:{start_epoch} of {cfg.checkpoint_dir}",  cfg.gLogPath +'/misc.txt')
     else:
         start_epoch = 0
+
+
+    ### DATA ACCESS
+    trainloader, data_info = getUSClassifyDataloader(cfg.data,
+                        cfg.batch_size, cfg.workers,  type_='train',
+                        balance_class=cfg.balance_class )
+    lutl.LOG2DICTXT(data_info, cfg.gLogPath +'/misc.txt')
+    validloader, data_info = getUSClassifyDataloader(cfg.validation,
+                        cfg.batch_size, cfg.workers, type_='valid')
+    lutl.LOG2DICTXT(data_info, cfg.gLogPath +'/misc.txt')
 
 
     ### MODEL TRAINING
