@@ -35,6 +35,7 @@ epochs= 1000,
 batch_size= 2048,
 workers= 4,
 balance_class = True,
+augument_list = ["rhf", "rvf"], # ["rrc", "rac", "rhf", "rvf"]
 
 learning_rate= 0.2,
 weight_decay= 1e-6,
@@ -64,7 +65,6 @@ if args.load_json:
 ### ----------------------------------------------------------------------------
 cfg.gLogPath = cfg.checkpoint_dir
 cfg.gWeightPath = cfg.checkpoint_dir + '/weights/'
-if not os.path.exists(cfg.gWeightPath): os.makedirs(cfg.gWeightPath)
 
 ### ============================================================================
 
@@ -76,8 +76,11 @@ def simple_main():
     gpu = 0
     torch.cuda.set_device(gpu)
     torch.backends.cudnn.benchmark = True
+
     if os.path.exists(cfg.checkpoint_dir) and (not cfg.restart_training):
         raise Exception("CheckPoint folder already exists and restart_training not enabled; Somethings Wrong!")
+    if not os.path.exists(cfg.gWeightPath): os.makedirs(cfg.gWeightPath)
+
     with open(cfg.gLogPath+"/exp_cfg.json", 'a') as f:
         json.dump(vars(cfg), f, indent=4)
 
@@ -104,6 +107,7 @@ def simple_main():
     ### DATA ACCESS
     trainloader, data_info = getUSClassifyDataloader(cfg.data,
                         cfg.batch_size, cfg.workers,  type_='train',
+                        augument_list=cfg.augument_list,
                         balance_class=cfg.balance_class )
     lutl.LOG2DICTXT(data_info, cfg.gLogPath +'/misc.txt')
     validloader, data_info = getUSClassifyDataloader(cfg.validation,

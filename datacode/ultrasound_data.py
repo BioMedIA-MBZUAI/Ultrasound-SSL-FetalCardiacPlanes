@@ -1,4 +1,5 @@
-import os, random
+import os, json
+import random
 from PIL import Image, ImageOps, ImageFilter
 
 from torch import nn, optim
@@ -161,17 +162,20 @@ def get_balanced_samples_weight(images, nclasses):
 
 
 class USClassifyTransform:
-    def __init__(self, infer = False):
+    def __init__(self, infer = False, aug_list=[]):
         self.img_size =  256
 
-        train_transform = transforms.Compose([
-            transforms.RandomResizedCrop(self.img_size, scale=(0.75, 1.0),
-                                interpolation=Image.BICUBIC),
-            transforms.RandomAutocontrast(p=0.6),
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.RandomVerticalFlip(p=0.5),
-            transforms.ToTensor(),
-        ])
+        trans_ = []
+        if "rrc" in aug_list: trans_.append( transforms.RandomResizedCrop(
+                                self.img_size,
+                                scale=(0.75, 1.0),
+                                interpolation=Image.BICUBIC)    )
+        if "rac" in aug_list: trans_.append(transforms.RandomAutocontrast(p=0.6))
+        if "rhf" in aug_list: trans_.append(transforms.RandomHorizontalFlip(p=0.5))
+        if "rvf" in aug_list: trans_.append(transforms.RandomVerticalFlip(p=0.5))
+
+
+        train_transform = transforms.Compose(trans_+[transforms.ToTensor()])
 
         infer_transform = transforms.Compose([
             transforms.RandomHorizontalFlip(p=0.5),
@@ -189,9 +193,14 @@ class USClassifyTransform:
         y = self.transform(x)
         return y
 
+    def get_composition(self):
+        return self.transform
+
+
 
 def getUSClassifyDataloader(folders, batch_size, workers,
                             balance_class = False,
+                            augument_list = [],
                             type_=None, # unused
                             ):
     infer_f = False
@@ -200,6 +209,7 @@ def getUSClassifyDataloader(folders, batch_size, workers,
         infer_f = True
         shuffle = False
 
+    transforms = USClassifyTransform(infer_f, augument_list)
 
     if False and isinstance(folders, list):
         ## TODO:
@@ -211,13 +221,14 @@ def getUSClassifyDataloader(folders, batch_size, workers,
             extensions = extensions,
             is_valid_file=is_valid_file )
     else:
-        dataset = torchvision.datasets.ImageFolder(folders,
-                        USClassifyTransform(infer_f))
+        dataset = torchvision.datasets.ImageFolder(folders, transforms)
 
     # print(dataset.class_to_idx)
     data_info = {"type": type_,
                  "#ClassId": dataset.class_to_idx ,
-                 "#DatasetSize": dataset.__len__() }
+                 "#DatasetSize": dataset.__len__(),
+                 "#Transforms": str(transforms.get_composition()),
+                 }
 
     sampler = None
     if balance_class:

@@ -91,7 +91,7 @@ def split_image_folder_by_nameid(source_root, target_root,
             item = grouped_dic.pop(k)
             valid_dic[k] = item
             curr_count += item["count"]
-        print_info(f'Class:{cf},Tot:{total_count} Train:{total_count - curr_count} Valid:{curr_count}',
+        print_info(f'Class:{cf},Tot:{total_count} Train:{total_count - curr_count} Valid:{curr_count} ratio:{curr_count/total_count}',
                     target_root+"/split-info.txt")
 
         ipath_dir =  os.path.dirname(ipath)
