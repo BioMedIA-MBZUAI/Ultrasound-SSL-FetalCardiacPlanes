@@ -38,12 +38,17 @@ learning_rate_weights = 0.2,
 learning_rate_biases  = 0.0048,
 weight_decay = 1e-6,
 lambd = 0.0051,
-# feature_extract = "resnet18", # "resnet34/50/101"
-# featx_pretrain =  "DEFAULT",  # path-to-weights or None
+
+feature_extract = "resnet50", # "resnet34/50/101"
+featx_pretrain =  "DEFAULT",  # path-to-weights or None
 projector = [8192,8192,8192],
 
-print_freq = 100,
+print_freq = 500, #steps
+ckpt_freq = 10,  #epochs
+bkpt_freq = 100,  #epochs
+
 checkpoint_dir= "hypotheses/dumbtpth/",
+
 )
 
 ## --------
@@ -58,34 +63,34 @@ if args.load_json:
         cfg.__dict__.update(json.load(f))
 
 ### ----------------------------------------------------------------------------
-
-gLogPath = cfg.checkpoint_dir
-gWeightPath = cfg.checkpoint_dir + '/weights/'
-if not os.path.exists(gWeightPath): os.makedirs(gWeightPath)
-
-with open(gLogPath+"/exp_bt_cfg.json", 'a') as f:
-    json.dump(vars(cfg), f, indent=4)
+cfg.gLogPath = cfg.checkpoint_dir
+cfg.gWeightPath = cfg.checkpoint_dir + '/weights/'
 
 ### ============================================================================
 
 
 def simple_main():
+    ### SETUP
     rutl.START_SEED()
     gpu = 0
     torch.cuda.set_device(gpu)
     torch.backends.cudnn.benchmark = True
 
+    if os.path.exists(cfg.checkpoint_dir) and (not cfg.restart_training):
+        raise Exception("CheckPoint folder already exists and restart_training not enabled; Somethings Wrong!")
+    if not os.path.exists(cfg.gWeightPath): os.makedirs(cfg.gWeightPath)
+
+    with open(cfg.gLogPath+"/exp_cfg.json", 'a') as f:
+        json.dump(vars(cfg), f, indent=4)
+
+    ### MODEL, OPTIM
     model = BarlowTwins(cfg).cuda(gpu)
     optimizer = LARS(model.parameters(), lr=0, weight_decay=cfg.weight_decay,
                      weight_decay_filter=True, lars_adaptation_filter=True)
 
-    dataloader,data_info = getUSBarlowTwinDataloader(cfg.data,
-                    cfg.batch_size, cfg.workers)
-    lutl.LOG2DICTXT(data_info, gLogPath +'/misc.txt')
-
     ### automatically resume from checkpoint if it exists
-    if os.path.exists(gWeightPath +'/checkpoint.pth'):
-        ckpt = torch.load(gWeightPath+'/checkpoint.pth',
+    if os.path.exists(cfg.gWeightPath +'/checkpoint.pth'):
+        ckpt = torch.load(cfg.gWeightPath+'/checkpoint.pth',
                           map_location='cpu')
         start_epoch = ckpt['epoch']
         model.load_state_dict(ckpt['model'])
@@ -96,7 +101,13 @@ def simple_main():
         start_epoch = 0
 
 
-    ### Training Routine
+    ### DATA ACCESS
+    dataloader,data_info = getUSBarlowTwinDataloader(cfg.data,
+                    cfg.batch_size, cfg.workers)
+    lutl.LOG2DICTXT(data_info, cfg.gLogPath +'/misc.txt')
+
+
+    ### MODEL TRAINING
     start_time = time.time()
     scaler = torch.cuda.amp.GradScaler() # for mixed precision
     for epoch in range(start_epoch, cfg.epochs):
@@ -123,11 +134,14 @@ def simple_main():
                 lutl.LOG2DICTXT(stats, cfg.checkpoint_dir +'/train-stats.txt')
 
         # save checkpoint
-        state = dict(epoch=epoch + 1, model=model.state_dict(),
-                        optimizer=optimizer.state_dict())
-        torch.save(state, gWeightPath +'/checkpoint.pth')
-    # save final model
-    torch.save(model.backbone.state_dict(), gWeightPath +'/encoder-weight.pth')
+        if epoch % cfg.ckpt_freq == 0:
+            state = dict(epoch=epoch + 1, model=model.state_dict(),
+                            optimizer=optimizer.state_dict())
+            torch.save(state, cfg.gWeightPath +'/checkpoint.pth')
+
+        # save final model
+        if epoch % cfg.bkpt_freq == 0:
+            torch.save(model.backbone.state_dict(), cfg.gWeightPath +'/encoder-weight.pth')
 
 
 if __name__ == '__main__':

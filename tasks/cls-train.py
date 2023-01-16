@@ -17,7 +17,7 @@ sys.path.append(os.getcwd())
 import utilities.runUtils as rutl
 import utilities.logUtils as lutl
 from utilities.metricUtils import MultiClassMetrics
-from algorithms.resnet import ClassifierNet
+from algorithms.classifiers import ClassifierNet
 from datacode.ultrasound_data import getUSClassifyDataloader
 from datacode.general_data import getCifar100Dataloader
 
@@ -29,8 +29,8 @@ print("Device Used:", device)
 
 ###============================= Configure and Setup ===========================
 cfg = rutl.ObjDict(
-data= "/home/USR/WERK/data/train",
-validation = "/home/USR/WERK/data/valid",
+train_data= "/home/USR/WERK/data/train",
+valid_data = "/home/USR/WERK/data/valid",
 epochs= 1000,
 batch_size= 2048,
 workers= 4,
@@ -105,12 +105,12 @@ def simple_main():
 
 
     ### DATA ACCESS
-    trainloader, data_info = getUSClassifyDataloader(cfg.data,
+    trainloader, data_info = getUSClassifyDataloader(cfg.train_data,
                         cfg.batch_size, cfg.workers,  type_='train',
                         augument_list=cfg.augument_list,
                         balance_class=cfg.balance_class )
     lutl.LOG2DICTXT(data_info, cfg.gLogPath +'/misc.txt')
-    validloader, data_info = getUSClassifyDataloader(cfg.validation,
+    validloader, data_info = getUSClassifyDataloader(cfg.valid_data,
                         cfg.batch_size, cfg.workers, type_='valid')
     lutl.LOG2DICTXT(data_info, cfg.gLogPath +'/misc.txt')
 
