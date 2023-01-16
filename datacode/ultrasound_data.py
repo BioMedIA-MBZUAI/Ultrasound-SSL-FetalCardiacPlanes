@@ -166,13 +166,18 @@ class USClassifyTransform:
         self.img_size =  256
 
         trans_ = []
-        if "rrc" in aug_list: trans_.append( transforms.RandomResizedCrop(
-                                self.img_size,
-                                scale=(0.75, 1.0),
-                                interpolation=Image.BICUBIC)    )
-        if "rac" in aug_list: trans_.append(transforms.RandomAutocontrast(p=0.6))
-        if "rhf" in aug_list: trans_.append(transforms.RandomHorizontalFlip(p=0.5))
-        if "rvf" in aug_list: trans_.append(transforms.RandomVerticalFlip(p=0.5))
+        if "crop" in aug_list: trans_.append( transforms.RandomResizedCrop(
+                        self.img_size, scale=(0.75, 1.0),
+                        interpolation=Image.BICUBIC)    )
+        if "cntr" in aug_list: trans_.append(transforms.RandomAutocontrast(p=0.6))
+        if "brig" in aug_list: trans_.append(transforms.ColorJitter(brightness=0.5))
+        if "affn" in aug_list: trans_.append(transforms.RandomAffine(
+                        degrees=(-180, 180), translate=(0.2, 0.2),
+                        interpolation=transforms.InterpolationMode.BICUBIC))
+        if "pers" in aug_list: trans_.append(transforms.RandomVerticalFlip(p=0.5))
+
+        if "hflp" in aug_list: trans_.append(transforms.RandomHorizontalFlip(p=0.5))
+        if "vflp" in aug_list: trans_.append(transforms.RandomVerticalFlip(p=0.5))
 
 
         train_transform = transforms.Compose(trans_+[transforms.ToTensor()])

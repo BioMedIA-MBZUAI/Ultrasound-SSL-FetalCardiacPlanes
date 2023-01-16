@@ -35,7 +35,7 @@ epochs= 1000,
 batch_size= 2048,
 workers= 4,
 balance_class = True,
-augument_list = ["rhf", "rvf"], # ["rrc", "rac", "rhf", "rvf"]
+augument_list = ["hflp", "vflp"], #["crop", "cntr", "brig", "affn", "pers", "hflp", "vflp"]
 
 learning_rate= 0.2,
 weight_decay= 1e-6,
