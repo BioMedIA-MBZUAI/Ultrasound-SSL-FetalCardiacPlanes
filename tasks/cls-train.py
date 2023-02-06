@@ -1,3 +1,6 @@
+""" Classifier Network trainig
+"""
+
 import argparse
 import json
 import math
@@ -9,7 +12,7 @@ import sys
 import time
 
 from tqdm.autonotebook import tqdm
-from PIL import Image, ImageOps, ImageFilter
+import PIL.Image
 from torch import nn, optim
 import torch
 
@@ -28,23 +31,30 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print("Device Used:", device)
 
 ###============================= Configure and Setup ===========================
+
 cfg = rutl.ObjDict(
-train_data= "/home/USR/WERK/data/train",
-valid_data = "/home/USR/WERK/data/valid",
+train_images_folder= "/home/USR/WERK/data/train",
+train_csv_file = None,
+train_filtering = {},  #{"blacklist":{'class':["4ch"],"machine_type":["Voluson E8","Voluson S10 Expert","V830"]}}
+balance_class = True,
+augument_list = ["hflp", "vflp"], #["crop", "ctrs", "brig", "affn", "pers", "hflp", "vflp"]
+
+valid_images_folder = "/home/USR/WERK/data/valid",
+valid_csv_file = None,
+valid_filtering = {},
+
+
 epochs= 1000,
 batch_size= 2048,
 workers= 4,
-balance_class = True,
-augument_list = ["hflp", "vflp"], #["crop", "cntr", "brig", "affn", "pers", "hflp", "vflp"]
-
 learning_rate= 0.2,
 weight_decay= 1e-6,
-feature_extract = "resnet18", # "resnet34/50/101"
+feature_extract = "resnet50", # "resnet34/50/101"
 featx_pretrain =  "DEFAULT",  # path-to-weights or None
 featx_dropout = 0,
 featx_freeze =  False,
 
-classifier = [1024, 6],
+classifier = [512, 6],
 clsfy_dropout = 0.5,
 
 checkpoint_dir= "hypotheses/dummypth/",
@@ -105,13 +115,19 @@ def simple_main():
 
 
     ### DATA ACCESS
-    trainloader, data_info = getUSClassifyDataloader(cfg.train_data,
-                        cfg.batch_size, cfg.workers,  type_='train',
+    trainloader, data_info = getUSClassifyDataloader(cfg.train_images_folder,
+                        csv_file = cfg.train_csv_file,
+                        batch_size=cfg.batch_size, workers=cfg.workers,
+                        type_='train',
                         augument_list=cfg.augument_list,
-                        balance_class=cfg.balance_class )
+                        balance_class=cfg.balance_class,
+                        filtering_dict=cfg.train_filtering )
     lutl.LOG2DICTXT(data_info, cfg.gLogPath +'/misc.txt')
-    validloader, data_info = getUSClassifyDataloader(cfg.valid_data,
-                        cfg.batch_size, cfg.workers, type_='valid')
+    validloader, data_info = getUSClassifyDataloader(cfg.valid_images_folder,
+                        csv_file = cfg.valid_csv_file,
+                        batch_size=cfg.batch_size, workers=cfg.workers,
+                        type_='valid',
+                        filtering_dict=cfg.valid_filtering)
     lutl.LOG2DICTXT(data_info, cfg.gLogPath +'/misc.txt')
 
 

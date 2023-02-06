@@ -1,153 +1,86 @@
 import os, json
 import random
-from PIL import Image, ImageOps, ImageFilter
+import PIL.Image
+import pandas as pd
 
-from torch import nn, optim
 import torch
-from torch.utils.data import WeightedRandomSampler
+from torch.utils.data import Dataset, WeightedRandomSampler
 import torchvision
 import torchvision.transforms as transforms
-from torchvision.datasets import VisionDataset
-from torchvision.datasets.folder import default_loader, has_file_allowed_extension,  IMG_EXTENSIONS
+from typing import List, Dict
 
-from typing import Any, Callable, cast, Dict, List, Optional, Tuple, Union
+##---------------------- Generals -----------------------------------------------
 
-##---------------------- Classes -----------------------------------------------
+def filter_dataframe(self, df, filtering_dict):
 
-## Experimental TODO
-class MultiImageDataFolders(VisionDataset):
-    """ For Loading ImageFolder dataset from Multiple locations
-    Modified Class of DatasetFolder
-    Args & Attributes: same as ImageFolder of torch.utils
-    """
+    if "blacklist" in filtering_dict and "whitelist" in filtering_dict:
+        raise  Exception("Hey, decide between whitelisting or blacklisting, Can't do both! remove either one")
 
-    def __init__(
-        self,
-        root: str,
-        loader: Callable[[str], Any],
-        extensions: Optional[Tuple[str, ...]] = None,
-        transform: Optional[Callable] = None,
-        target_transform: Optional[Callable] = None,
-        is_valid_file: Optional[Callable[[str], bool]] = None,
-    ) -> None:
-        print("CHECKER", extensions, is_valid_file)
+    if "blacklist" in filtering_dict:
+        print("blacklisting...")
+        blacklist_dict = filtering_dict["blacklist"]
+        new_df = df
+        for k in blacklist_dict.keys():
+            for val in blacklist_dict[k]:
+                new_df = new_df[new_df[k] != val]
 
-        super().__init__(root, transform=transform, target_transform=target_transform)
+    elif "whitelist" in filtering_dict:
+        print("whitelisting...")
+        whitelist_dict = filtering_dict["whitelist"]
+        new_df_list = []
+        for k in whitelist_dict.keys():
+            for val in whitelist_dict[k]:
+                new_df_list.append(df[df[k] == val])
+        new_df = pd.concat(new_df_list).drop_duplicates().reset_index(drop=True)
 
-        classes, class_to_idx = self.find_classes(self.root)
-        samples = self.make_dataset(self.root, class_to_idx, extensions, is_valid_file)
+    else:
+        print("No filtering of data done, Peace!")
+        new_df = df
 
-        self.loader = loader
-        self.extensions = extensions
-
-        self.classes = classes
-        self.class_to_idx = class_to_idx
-        self.samples = samples
-        self.targets = [s[1] for s in samples]
-
-        self.imgs = self.samples
-
-    def find_classes(self, directories: list
-            )-> Tuple[List[str], Dict[str, int]]:
-        """
-        """
-        print("#### In Overridden function of Manually Written GetClass ####")
-
-        classes = set()
-        for direc in directories: ## Modif
-            classes_ = sorted(entry.name for entry in os.scandir(direc) if entry.is_dir())
-            if not classes_:
-                raise FileNotFoundError(f"Couldn't find any class folder in {direc}.")
-            classes.update(classes_)
-
-        class_to_idx = {cls_name: i for i, cls_name in enumerate(classes)}
-        return classes, class_to_idx
-
-
-    def make_dataset(self, directories: List[str],
-                class_to_idx: Optional[Dict[str, int]] = None,
-                extensions: Optional[Union[str, Tuple[str, ...]]] = None,
-                is_valid_file: Optional[Callable[[str], bool]] = None,
-            ) -> List[Tuple[str, int]]:
-        """ Generates a list of samples of a form (path_to_sample, class).
-        """
-        print("#### In Overridden function of Manually Written MakeDataSet ####")
-
-        instances = []
-        available_classes = set()
-
-        for directory in directories: ##Modif
-            directory = os.path.expanduser(directory)
-
-            if class_to_idx is None:
-                _, class_to_idx = self.find_classes(directory)
-            elif not class_to_idx:
-                raise ValueError("'class_to_index' must have at least one entry to collect any samples.")
-
-            both_none = extensions is None and is_valid_file is None
-            both_something = extensions is not None and is_valid_file is not None
-            if both_none or both_something:
-                raise ValueError("Both extensions and is_valid_file cannot be None or not None at the same time")
-
-            if extensions is not None:
-
-                def is_valid_file(x: str) -> bool:
-                    return has_file_allowed_extension(x, extensions)  # type: ignore[arg-type]
-
-            is_valid_file = cast(Callable[[str], bool], is_valid_file)
-
-
-            for target_class in sorted(class_to_idx.keys()):
-                class_index = class_to_idx[target_class]
-                target_dir = os.path.join(directory, target_class)
-                if not os.path.isdir(target_dir):
-                    continue
-                for root, _, fnames in sorted(os.walk(target_dir, followlinks=True)):
-                    for fname in sorted(fnames):
-                        path = os.path.join(root, fname)
-                        if is_valid_file(path):
-                            item = path, class_index
-                            instances.append(item)
-
-                            if target_class not in available_classes:
-                                available_classes.add(target_class)
-        #END loop
-
-        empty_classes = set(class_to_idx.keys()) - available_classes
-        if empty_classes:
-            msg = f"Found no valid file for the classes {', '.join(sorted(empty_classes))}. "
-            if extensions is not None:
-                msg += f"Supported extensions are: {extensions if isinstance(extensions, str) else ', '.join(extensions)}"
-            raise FileNotFoundError(msg)
-
-        return instances
-
-    def __getitem__(self, index: int) -> Tuple[Any, Any]:
-        """
-        Args: index (int): Index
-        Returns: tuple: (sample, target) where target is class_index of the target class.
-        """
-        path, target = self.samples[index]
-        sample = self.loader(path)
-        if self.transform is not None:
-            sample = self.transform(sample)
-        if self.target_transform is not None:
-            target = self.target_transform(target)
-
-        return sample, target
-
-    def __len__(self) -> int:
-        return len(self.samples)
+    return new_df
 
 
 ## =============================================================================
 ## Classification
 
 
+class ClassifyDataFromCSV(Dataset):
+    def __init__(self, images_folder, csv_path, transform = None,
+                        filtering_dict: Dict[str,Dict[str,List]] = {},
+                        ):
+        """
+        """
+
+        self.images_folder = images_folder
+        df = pd.read_csv(csv_path)
+        self.df = filter_dataframe(df, filtering_dict)
+
+        self.class_to_idx ={c:i for i, c in enumerate(sorted( set(
+                                    self.df["class"]  )))}
+        self.images_path =  [ os.path.join(images_folder, c, n) for c, n in zip(
+                                    self.df["class"], self.df["image_name"]) ]
+        self.images_class =list(map(lambda x: self.class_to_idx[x],
+                                    list(self.df["class"]) ))
+
+        if transform: self.transform = transform
+        else: self.transform = transforms.ToTensor()
+
+
+    def __len__(self):
+        return len(self.images_path)
+
+    def __getitem__(self, index):
+        imgpath = self.images_path[index]
+        label = self.images_class[index]
+        image = PIL.Image.open(imgpath)
+        image = self.transform(image)
+        return image, label
+
+
+
 def get_balanced_samples_weight(images, nclasses):
     """ Sample level weights fro balanced sampling statergy
     """
-
     n_images = len(images)
     count_per_class = [0] * nclasses
     for _, image_class in images:
@@ -168,8 +101,8 @@ class USClassifyTransform:
         trans_ = []
         if "crop" in aug_list: trans_.append( transforms.RandomResizedCrop(
                         self.img_size, scale=(0.75, 1.0),
-                        interpolation=Image.BICUBIC)    )
-        if "cntr" in aug_list: trans_.append(transforms.RandomAutocontrast(p=0.6))
+                        interpolation=transforms.InterpolationMode.BICUBIC)    )
+        if "ctrs" in aug_list: trans_.append(transforms.RandomAutocontrast(p=0.6))
         if "brig" in aug_list: trans_.append(transforms.ColorJitter(brightness=0.5))
         if "affn" in aug_list: trans_.append(transforms.RandomAffine(
                         degrees=(-180, 180), translate=(0.2, 0.2),
@@ -203,7 +136,9 @@ class USClassifyTransform:
 
 
 
-def getUSClassifyDataloader(folders, batch_size, workers,
+def getUSClassifyDataloader(image_folder, csv_file = None,
+                            batch_size = 32, workers = 1,
+                            filtering_dict = {},
                             balance_class = False,
                             augument_list = [],
                             type_=None, # unused
@@ -216,27 +151,23 @@ def getUSClassifyDataloader(folders, batch_size, workers,
 
     transforms = USClassifyTransform(infer_f, augument_list)
 
-    if False and isinstance(folders, list):
-        ## TODO:
-        is_valid_file = None
-        extensions = IMG_EXTENSIONS if is_valid_file is None else None
-        dataset = MultiImageDataFolders(folders,
-            transform=USClassifyTransform(),
-            loader = default_loader,
-            extensions = extensions,
-            is_valid_file=is_valid_file )
+    if csv_file:
+        dataset = ClassifyDataFromCSV( image_folder, csv_file,
+                                        transforms, filtering_dict )
     else:
-        dataset = torchvision.datasets.ImageFolder(folders, transforms)
+        dataset = torchvision.datasets.ImageFolder(image_folder, transforms)
+        if filtering_dict: raise Exception("BlackListing and Filtering data is not implemented for ImageFolder structure based Loading")
 
     # print(dataset.class_to_idx)
     data_info = {"type": type_,
                  "#ClassId": dataset.class_to_idx ,
                  "#DatasetSize": dataset.__len__(),
                  "#Transforms": str(transforms.get_composition()),
+                 "#Filtering": filtering_dict,
                  }
 
     sampler = None
-    if balance_class:
+    if balance_class: #TODO: Fix for Custom Dataloader
         samples_per_epoch = int(1.5 * len(dataset.imgs))
         s_weight, freq = get_balanced_samples_weight(dataset.imgs, len(dataset.classes))
         sampler = WeightedRandomSampler(s_weight, samples_per_epoch)
@@ -294,3 +225,40 @@ def getUSBarlowTwinDataloader(folder, batch_size, workers):
                 drop_last= True, pin_memory=True)
 
     return loader, data_info
+
+
+
+## =============================================================================
+## Reconstruction
+
+class USFrameConstruction(Dataset):
+    def __init__(self, images_folder, csv_path, transform = None,
+                        filtering_dict: Dict[str,Dict[str,List]] = {},
+                        ):
+        """
+        """
+
+        self.images_folder = images_folder
+        df = pd.read_csv(csv_path)
+        self.df = self._filter_dataframe(df, filtering_dict)
+
+        self.images_path =  [ os.path.join(images_folder, c, n) for c, n in zip(
+                                    self.df["class"], self.df["image_name"]) ]
+        self.images_class =list(map(lambda x: self.class_to_idx[x],
+                                    list(self.df["class"]) ))
+
+
+        if transform: self.transform = transform
+        else: self.transform = transforms.ToTensor()
+
+
+    def __len__(self):
+        return len(self.images_path)
+
+    def __getitem__(self, index):
+        imgpath = self.images_path[index]
+        label = self.images_class[index]
+        image = PIL.Image.open(imgpath)
+        image = self.transform(image)
+        return image, label
+
