@@ -2,6 +2,8 @@ import os
 import torch
 import torchvision
 from torch import nn
+
+sys.path.append(os.getcwd())
 import utilities.runUtils as rutl
 import utilities.logUtils as lutl
 
@@ -15,11 +17,11 @@ class ClassifierNet(nn.Module):
         self.args = args
 
         # Feature Extractor
-        self.backbone, out_size = self._load_resnet_backbone()
+        self.backbone, self.feat_outsize = self._load_resnet_backbone()
         self.feat_dropout = nn.Dropout(p=self.args.featx_dropout)
 
         # Classifier
-        sizes = [out_size] + list(args.classifier)
+        sizes = [self.feat_outsize] + list(args.classifier)
         layers = []
         for i in range(len(sizes) - 2):
             layers.append(nn.Linear(sizes[i], sizes[i + 1], bias=False))
@@ -41,16 +43,39 @@ class ClassifierNet(nn.Module):
 
     def _load_resnet_backbone(self):
 
-        torch_pretrain = "DEFAULT" if self.args.featx_pretrain == "DEFAULT" else None
+        ## pretrain setting
+        torch_pretrain = None
+        if self.args.featx_pretrain in ["DEFAULT", "IMGNET-1K"]:
+            torch_pretrain = "DEFAULT"
+        elif self.args.featx_pretrain not in [None, "NONE", "none"]:
+            raise ValueError("Unknown pretrain weight type requested ", self.args.featx_pretrain )
 
+        ## Model loading
         if self.args.feature_extract == 'resnet18':
             backbone = torchvision.models.resnet18(zero_init_residual=True,
                                  weights=torch_pretrain)
+            outfeat_size = 512
+        elif self.args.feature_extract == 'resnet34':
+            backbone = torchvision.models.resnet34(zero_init_residual=True,
+                                weights=torch_pretrain)
             outfeat_size = 512
         elif self.args.feature_extract == 'resnet50':
             backbone = torchvision.models.resnet50(zero_init_residual=True,
                                 weights=torch_pretrain)
             outfeat_size = 2048
+
+        elif self.args.feature_extract == 'resnet101':
+            backbone = torchvision.models.resnet101(zero_init_residual=True,
+                                weights=torch_pretrain)
+            outfeat_size = 2048
+
+        elif self.args.feature_extract == 'resnet152':
+            backbone = torchvision.models.resnet152(zero_init_residual=True,
+                                weights=torch_pretrain)
+            outfeat_size = 2048
+
+        else:
+            raise ValueError(f"Unknown Model Implementation called in {os.path.basename(__file__)}")
         backbone.fc = nn.Identity() #remove fc of default arch
 
         # Change input Conv
@@ -99,3 +124,11 @@ class ClassifierNet(nn.Module):
         model.load_state_dict(model_dict)
 
         return model
+
+
+if __name__ == "__main__":
+
+    from torchsummary import summary
+
+    model = torchvision.models.resnet50()
+    summary(model, (3, 224, 224))
