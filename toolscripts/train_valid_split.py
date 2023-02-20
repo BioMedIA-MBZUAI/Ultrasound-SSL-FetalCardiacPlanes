@@ -9,6 +9,7 @@ def print_info(string, writepath):
     print(string, file=open(writepath, "a"))
 
 
+## Use when all you care is just random split
 def split_image_folder(source_root, target_root, portion=2, ratio= [0.8, 0.2]):
     random.seed(73)
     assert len(ratio) == portion
@@ -43,16 +44,19 @@ def split_image_folder(source_root, target_root, portion=2, ratio= [0.8, 0.2]):
 
 
 
-def split_image_folder_by_nameid(source_root, target_root,
-                                    ratio= [0.8, 0.2] ):
+## Ensures a given ID is not present in train -val splits within a class
+def split_image_folder_byID(source_root, target_root,
+                                    ratio= [0.8, 0.2], ):
     """
     Written just for two folder logic - train, valid
 
     """
 
     def parse_study_id(string):
-        str_list = [ x for x in string.split("-") if "Study" in x ]
-        return str_list[0]
+        # str_list = [ x for x in string.split("_") if "Study" in x ]
+        # out = str_list[0]
+        out =  string.split("_")[0] # PateintID
+        return out
 
     def grouper(name_list):
         out_dic = {}
@@ -76,14 +80,13 @@ def split_image_folder_by_nameid(source_root, target_root,
     os.makedirs(target_root, exist_ok = True)
     class_folder = [n for n in os.listdir(source_root)]
 
-
     for cf in class_folder:
         ipath = os.path.join(source_root, cf, "*.png")
         imnames = [os.path.basename(x) for x in glob.glob(ipath)]
         total_count = len(imnames)
         grouped_dic = grouper(imnames)
 
-        ##TODO: rewrite logic for N splits when life bestows time
+        #TODO: rewrite logic for N splits when life bestows time
         curr_count = 0
         valid_dic = {}
         while curr_count < total_count * ratio[-1]:

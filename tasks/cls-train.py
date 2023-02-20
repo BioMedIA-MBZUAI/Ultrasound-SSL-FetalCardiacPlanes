@@ -20,7 +20,8 @@ sys.path.append(os.getcwd())
 import utilities.runUtils as rutl
 import utilities.logUtils as lutl
 from utilities.metricUtils import MultiClassMetrics
-from algorithms.classifiers import ClassifierNet
+from algorithms.convnext import ClassifierNet
+# from algorithms.classifiers import ClassifierNet
 from datacode.ultrasound_data import getUSClassifyDataloader
 from datacode.general_data import getCifar100Dataloader
 

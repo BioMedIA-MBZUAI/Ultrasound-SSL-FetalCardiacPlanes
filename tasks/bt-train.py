@@ -1,3 +1,5 @@
+""" Barlow Twin self-supervision training
+"""
 import argparse
 import json
 import math

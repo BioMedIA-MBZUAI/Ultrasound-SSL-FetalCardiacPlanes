@@ -14,42 +14,54 @@ def START_SEED(seed=73):
     torch.backends.cudnn.deterministic = True
 
 
+##========================== WEIGTHS ===========================================
+
 def load_pretrained(model, weight_path, flexible = False):
     if not weight_path:
         print("No weight file to be loaded returning Model with Random weights")
         return model
 
+    def _purge(key): # hardcoded logic
+        return key.replace("backbone.", "")
+
     model_dict = model.state_dict()
     weight_dict = torch.load(weight_path)
 
-    if weight_dict.has_key('model'):
+    if 'model' in weight_dict.keys():
         pretrain_dict = weight_dict['model']
     else:
         pretrain_dict = weight_dict
 
+    pretrain_dict = { _purge(k) : v for k, v in pretrain_dict.items()}
+
     if flexible:
         pretrain_dict = {k: v for k, v in pretrain_dict.items() if k in model_dict}
     if not len(pretrain_dict):
-        raise Exception(f"No weight names match to be loaded; though file exits ! {weight_path}, Dict: {weight_dict}")
+        raise Exception(f"No weight names match to be loaded; though file exits ! {weight_path}, Dict: {weight_dict.keys()}")
 
-    print("Pretrained layers:", pretrain_dict.keys())
+    print(f"Pretrained layers:{pretrain_dict.keys()}")
+
     model_dict.update(pretrain_dict)
     model.load_state_dict(model_dict)
 
     return model
+
+
 
 def count_train_param(model):
     train_params_count = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print('The model has {} trainable parameters'.format(train_params_count))
     return train_params_count
 
+
 def freeze_params(model, exclusion_list = []):
     ## TODO: Exclusion lists
     for param in model.parameters():
-        param.requires_grad = False
+        if param not in exclusion_list:
+            param.requires_grad = False
     return model
 
-
+##==============================================================================
 
 
 class ObjDict(dict):

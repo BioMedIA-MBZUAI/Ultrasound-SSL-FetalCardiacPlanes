@@ -20,3 +20,5 @@ def getCifar100Dataloader(folder, batch_size, workers, type_ = 'train'):
     return loader, cls_idx
 
 
+
+
