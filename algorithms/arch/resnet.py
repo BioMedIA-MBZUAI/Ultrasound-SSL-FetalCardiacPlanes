@@ -12,6 +12,7 @@ def loadResnetBackbone(arch, torch_pretrain= None, freeze= False):
         torch_pretrain = "DEFAULT"
     elif torch_pretrain not in [None, "NONE", "none"]:
         raise ValueError("Unknown pretrain weight type requested ", torch_pretrain )
+    print("Pretrain Set to ...", torch_pretrain)
 
     ## Model loading
     if arch == 'resnet18':

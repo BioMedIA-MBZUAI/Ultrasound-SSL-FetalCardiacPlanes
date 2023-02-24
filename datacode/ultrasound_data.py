@@ -1,7 +1,12 @@
-import os, json
+""" DataLoader for MBZUAI- BiomedIA Fetal Ultra Sound dataset
+"""
+
+import os, sys
+import json, glob
 import random
 import PIL.Image
 import pandas as pd
+import numpy as np
 
 import torch
 from torch.utils.data import Dataset, WeightedRandomSampler
@@ -94,48 +99,6 @@ def get_balanced_samples_weight(images, nclasses):
     return weights, weight_per_class
 
 
-class USClassifyTransform:
-    def __init__(self, infer = False, aug_list=[]):
-        self.img_size =  256
-
-        trans_ = []
-        if "crop" in aug_list: trans_.append( transforms.RandomResizedCrop(
-                        self.img_size, scale=(0.75, 1.0),
-                        interpolation=transforms.InterpolationMode.BICUBIC)    )
-        if "ctrs" in aug_list: trans_.append(transforms.RandomAutocontrast(p=0.6))
-        if "brig" in aug_list: trans_.append(transforms.ColorJitter(brightness=0.5))
-        if "affn" in aug_list: trans_.append(transforms.RandomAffine(
-                        degrees=(-180, 180), translate=(0.2, 0.2),
-                        interpolation=transforms.InterpolationMode.BICUBIC))
-        if "pers" in aug_list: trans_.append(transforms.RandomVerticalFlip(p=0.5))
-
-        if "hflp" in aug_list: trans_.append(transforms.RandomHorizontalFlip(p=0.5))
-        if "vflp" in aug_list: trans_.append(transforms.RandomVerticalFlip(p=0.5))
-
-
-        train_transform = transforms.Compose(trans_+[transforms.ToTensor()])
-
-        infer_transform = transforms.Compose([
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.RandomVerticalFlip(p=0.5),
-            transforms.ToTensor(),
-        ])
-
-        if infer:
-            self.transform = infer_transform
-        else:
-            self.transform = train_transform
-
-
-    def __call__(self, x):
-        y = self.transform(x)
-        return y
-
-    def get_composition(self):
-        return self.transform
-
-
-
 def getUSClassifyDataloader(image_folder, csv_file = None,
                             batch_size = 32, workers = 1,
                             filtering_dict = {},
@@ -181,84 +144,34 @@ def getUSClassifyDataloader(image_folder, csv_file = None,
     return loader, data_info
 
 
-
-## =============================================================================
-## Barlow Twin
-
-class USBarlowTwinTransform:
-    def __init__(self):
-        self.img_size =  256
-        self.transform = transforms.Compose([
-            transforms.RandomResizedCrop(self.img_size, scale=(0.7, 1.0),
-                        interpolation=transforms.InterpolationMode.BICUBIC),
-            transforms.RandomAffine(degrees=(-180, 180), translate=(0.2, 0.2),
-                        interpolation=transforms.InterpolationMode.BICUBIC),
-            transforms.ColorJitter(brightness=0.5),
-            transforms.ToTensor(),
-
-        ])
-        self.transform_prime = transforms.Compose([
-            transforms.RandomResizedCrop(self.img_size, scale=(0.6, 1.0),
-                        interpolation=transforms.InterpolationMode.NEAREST),
-            transforms.RandomPerspective(distortion_scale=0.6, p=0.5,
-                        interpolation=transforms.InterpolationMode.NEAREST),
-            transforms.RandomAutocontrast(p=0.7),
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.RandomVerticalFlip(p=0.5),
-            transforms.ToTensor(),
-
-        ])
-
-    def __call__(self, x):
-        y1 = self.transform(x)
-        y2 = self.transform_prime(x)
-        return y1, y2
+##================ US Video Frames Loader ======================================
 
 
-def getUSBarlowTwinDataloader(folder, batch_size, workers):
-
-    dataset = torchvision.datasets.ImageFolder(folder, USBarlowTwinTransform()) #train
-    data_info = { "#ClassId": dataset.class_to_idx ,
-                "#DatasetSize": dataset.__len__() }
-    loader = torch.utils.data.DataLoader( dataset, shuffle=True,
-                batch_size=batch_size, num_workers=workers,
-                drop_last= True, pin_memory=True)
-
-    return loader, data_info
-
-
-
-## =============================================================================
-## Reconstruction
-
-class USFrameConstruction(Dataset):
-    def __init__(self, images_folder, csv_path, transform = None,
-                        filtering_dict: Dict[str,Dict[str,List]] = {},
-                        ):
+class FetalUSFramesDataset(torch.utils.data.Dataset):
+    def __init__(self, images_folder, transform = None,):
         """
+        Simple CIFAR Image data loader
+        return_label: fine_class, coarse_label, none
         """
 
         self.images_folder = images_folder
-        df = pd.read_csv(csv_path)
-        self.df = self._filter_dataframe(df, filtering_dict)
-
-        self.images_path =  [ os.path.join(images_folder, c, n) for c, n in zip(
-                                    self.df["class"], self.df["image_name"]) ]
-        self.images_class =list(map(lambda x: self.class_to_idx[x],
-                                    list(self.df["class"]) ))
-
+        self.image_paths = glob.glob(images_folder+"/**/*.png")
 
         if transform: self.transform = transform
-        else: self.transform = transforms.ToTensor()
+        else: self.transform = torch_transforms.ToTensor()
 
 
     def __len__(self):
-        return len(self.images_path)
+        return len(self.image_paths)
 
     def __getitem__(self, index):
-        imgpath = self.images_path[index]
-        label = self.images_class[index]
-        image = PIL.Image.open(imgpath)
+        image = PIL.Image.open(self.image_paths[index]).convert("RGB")
         image = self.transform(image)
-        return image, label
+        return image
 
+
+    def get_info(self):
+        return {
+            "DataSize": self.__len__(),
+            "Transforms": str(self.transform),
+        }

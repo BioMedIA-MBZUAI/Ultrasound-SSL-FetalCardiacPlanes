@@ -3,6 +3,7 @@ from PIL import Image, ImageOps, ImageFilter
 import torchvision.transforms as torch_transforms
 
 
+##========================Natural Images========================================
 
 class GaussianBlur(object):
     def __init__(self, p):

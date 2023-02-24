@@ -22,6 +22,7 @@ import utilities.logUtils as lutl
 from algorithms.lars_optim import LARS, adjust_learning_rate
 from algorithms.barlowtwins import BarlowTwins
 from datacode.natural_image_data import Cifar100Dataset
+from datacode.ultrasound_data import FetalUSFramesDataset
 from datacode.augmentations import BarlowTwinsTransformOrig
 
 
@@ -35,9 +36,10 @@ print("Device Used:", device)
 CFG = rutl.ObjDict(
 use_amp = True, #automatic Mixed precision
 
-datapath= "/home/USR/WERK/data/",
-epochs= 1000,
-batch_size= 2048,
+datapath    = "/home/USR/WERK/data/",
+valdatapath = "/home/USR/WERK/valdata/",
+epochs      = 1000,
+batch_size  = 2048,
 
 learning_rate_weights = 0.2,
 learning_rate_biases  = 0.0048,
@@ -79,17 +81,15 @@ def getDataLoaders():
 
     transform_obj = BarlowTwinsTransformOrig(image_size=CFG.image_size)
 
-    traindataset = Cifar100Dataset( images_folder= os.path.join(CFG.datapath,"train_images"),
-                                    csv_path= os.path.join(CFG.datapath,"train_list.csv"),
+    traindataset = FetalUSFramesDataset( images_folder= CFG.datapath,
                                     transform = transform_obj)
     trainloader  = torch.utils.data.DataLoader( traindataset, shuffle=True,
                         batch_size=CFG.batch_size, num_workers=CFG.workers,
                         pin_memory=True)
 
-    validdataset = Cifar100Dataset( images_folder= os.path.join(CFG.datapath,"test_images"),
-                                    csv_path= os.path.join(CFG.datapath,"test_list.csv"),
+    validdataset = FetalUSFramesDataset( images_folder= CFG.valdatapath,
                                     transform = transform_obj)
-    validloader  = torch.utils.data.DataLoader( validdataset, shuffle=True,
+    validloader  = torch.utils.data.DataLoader( validdataset, shuffle=False,
                         batch_size=CFG.batch_size, num_workers=CFG.workers,
                         pin_memory=True)
 
@@ -209,6 +209,7 @@ def simple_main():
             best_flag = False
             if valid_epoch_loss < best_loss:
                 best_flag = True
+                best_loss = valid_epoch_loss
                 torch.save(model.backbone.state_dict(), CFG.gWeightPath +'/encoder-weight.pth')
 
             v_stats = dict(epoch=epoch, best=best_flag,

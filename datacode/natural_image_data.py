@@ -12,9 +12,9 @@ from datacode import augmentations as augs
 
 class Cifar100Dataset(torch.utils.data.Dataset):
     def __init__(self, images_folder, csv_path, transform = None,
-                    return_label = False, image_size=32):
+                    return_label = False):
         """
-        Simple CIFAR Image data loader
+        Simple CIFAR Image data loader. image_size:32x32
         return_label: fine_class, coarse_label, none
         """
 
@@ -58,4 +58,10 @@ class Cifar100Dataset(torch.utils.data.Dataset):
 
 if __name__ == "__main__":
 
-    pass
+    traindataset = Cifar100Dataset( images_folder= os.path.join(CFG.datapath,"train_images"),
+                                    csv_path= os.path.join(CFG.datapath,"train_list.csv"),
+                                    transform = transform_obj)
+
+    validdataset = Cifar100Dataset( images_folder= os.path.join(CFG.datapath,"test_images"),
+                                    csv_path= os.path.join(CFG.datapath,"test_list.csv"),
+                                    transform = transform_obj)
