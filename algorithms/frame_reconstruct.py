@@ -7,6 +7,7 @@ sys.path.append(os.getcwd())
 import utilities.runUtils as rutl
 import utilities.logUtils as lutl
 
+""" UNUSED FOR NOW """
 
 class ResNetAutoEncoder(nn.Module):
 
