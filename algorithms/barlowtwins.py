@@ -5,23 +5,23 @@ Facebook (FAIR), released under MIT License
 import torch
 import torchvision
 from torch import nn
-import utilities.runUtils as rutl
 
+from algorithms.arch.resnet import loadResnetBackbone
+import utilities.runUtils as rutl
 
 ## Neural Net
 class BarlowTwins(nn.Module):
-    def __init__(self, projector, batch_size, lmbd):
+    def __init__(self, arch, projector, batch_size, lmbd):
         super().__init__()
         rutl.START_SEED()
 
         self.batch_size =  batch_size
         self.lmbd = lmbd
 
-        self.backbone = torchvision.models.resnet50(zero_init_residual=True)
-        self.backbone.fc = nn.Identity()
+        self.backbone, outfeatx_size = loadResnetBackbone(arch=arch)
 
         # backbone_out_shape + projector_dims
-        sizes = [2048] + list(projector)
+        sizes = [outfeatx_size] + list(projector)
         layers = []
         for i in range(len(sizes) - 2):
             layers.append(nn.Linear(sizes[i], sizes[i + 1], bias=False))

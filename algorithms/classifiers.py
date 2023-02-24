@@ -41,62 +41,7 @@ class ClassifierNet(nn.Module):
         return out
 
 
-    def _load_resnet_backbone(self):
 
-        ## pretrain setting
-        torch_pretrain = None
-        if self.args.featx_pretrain in ["DEFAULT", "IMGNET-1K"]:
-            torch_pretrain = "DEFAULT"
-        elif self.args.featx_pretrain not in [None, "NONE", "none"]:
-            raise ValueError("Unknown pretrain weight type requested ", self.args.featx_pretrain )
-
-        ## Model loading
-        if self.args.feature_extract == 'resnet18':
-            backbone = torchvision.models.resnet18(zero_init_residual=True,
-                                 weights=torch_pretrain)
-            outfeat_size = 512
-        elif self.args.feature_extract == 'resnet34':
-            backbone = torchvision.models.resnet34(zero_init_residual=True,
-                                weights=torch_pretrain)
-            outfeat_size = 512
-        elif self.args.feature_extract == 'resnet50':
-            backbone = torchvision.models.resnet50(zero_init_residual=True,
-                                weights=torch_pretrain)
-            outfeat_size = 2048
-
-        elif self.args.feature_extract == 'resnet101':
-            backbone = torchvision.models.resnet101(zero_init_residual=True,
-                                weights=torch_pretrain)
-            outfeat_size = 2048
-
-        elif self.args.feature_extract == 'resnet152':
-            backbone = torchvision.models.resnet152(zero_init_residual=True,
-                                weights=torch_pretrain)
-            outfeat_size = 2048
-
-        else:
-            raise ValueError(f"Unknown Model Implementation called in {os.path.basename(__file__)}")
-        backbone.fc = nn.Identity() #remove fc of default arch
-
-        # Change input Conv
-        # conv1_weight = torch.sum(backbone.conv1.weight, axis = 1).unsqueeze(1)
-        # backbone.conv1 = nn.Conv2d(1,  64, kernel_size=7, stride=2, padding=3, bias=False)
-        # with torch.no_grad():
-        #     backbone.conv1.weight.copy_(conv1_weight)
-
-        # pretrain from external file
-        if os.path.exists(self.args.featx_pretrain):
-            backbone = self._load_weights_from_file(backbone,
-                                self.args.featx_pretrain )
-            print("Loaded:", self.args.featx_pretrain )
-
-        # freeze model
-        if self.args.featx_freeze:
-            print("Freezing Resnet weights ...")
-            for param in backbone.parameters():
-                param.requires_grad = False
-
-        return backbone, outfeat_size
 
 
 
