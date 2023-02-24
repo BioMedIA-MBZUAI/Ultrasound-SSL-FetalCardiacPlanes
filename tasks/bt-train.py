@@ -160,6 +160,7 @@ def simple_main():
 
         ## ---- Training Routine ----
         t_running_loss_ = 0
+        model.train()
         for step, (y1, y2) in tqdm(enumerate(trainloader, start=epoch * len(trainloader))):
             y1 = y1.to(device, non_blocking=True)
             y2 = y2.to(device, non_blocking=True)
