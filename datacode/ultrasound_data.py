@@ -5,6 +5,7 @@ import os, sys
 import json, glob
 import random
 import PIL.Image
+import h5py
 import pandas as pd
 import numpy as np
 
@@ -148,29 +149,80 @@ def getUSClassifyDataloader(image_folder, csv_file = None,
 
 
 class FetalUSFramesDataset(torch.utils.data.Dataset):
-    def __init__(self, images_folder, transform = None,):
+    """ Treats Video frames as Independant images for trainng purposes
+    """
+    def __init__(self, images_folder=None, hdf5_file=None,
+                        transform = None,
+                        load2ram = False, frame_skip=None):
         """
-        Simple CIFAR Image data loader
-        return_label: fine_class, coarse_label, none
         """
-
-        self.images_folder = images_folder
-        self.image_paths = glob.glob(images_folder+"/**/*.png")
+        self.load2ram = load2ram
+        self.frame_skip = frame_skip
+        #tobedefined
+        self.image_paths= []
+        self.image_frames= []
+        self.get_image_func = None
+        ##-----
 
         if transform: self.transform = transform
         else: self.transform = torch_transforms.ToTensor()
+
+        if hdf5_file:       self._hdf5file_handler(hdf5_file)
+        elif image_folder:  self._imagefolder_handler(images_folder)
+        else: raise Exception("No Data info to load")
+
+
+    # for image folder handling
+    def _imagefolder_handler(self, images_folder):
+        def __get_image_lazy(index):
+            return PIL.Image.open(self.image_paths[index]).convert("RGB")
+        def __get_image_eager(index):
+            return self.image_frames[index]
+
+        self.image_paths = sorted(glob.glob(images_folder+"/**/*.png"))
+
+        self.get_image_func = __get_image_lazy
+        if self.load2ram:
+            self.image_frames = [ __get_image_lazy(i)
+                                    for i in range(len(self.image_paths))]
+            self.get_image_func = __get_image_eager
+
+        print("Frame Skip is not implemented")
+
+    # for hdf5 file handling
+    def _hdf5file_handler(self, hdf5_file):
+        def __get_image_lazy(index):
+            k, i = self.image_paths[index]
+            arr = self.hdfobj[k][i]
+            return PIL.Image.fromarray(arr).convert("RGB")
+
+        def __get_image_eager(index):
+            return self.image_frames[index]
+
+        self.hdfobj = h5py.File(hdf5_file,'r')
+        for k in self.hdfobj.keys():
+            for i in range(self.hdfobj[k].shape[0]):
+                if i % self.frame_skip: continue
+                self.image_paths.append([k, i])
+
+        self.get_image_func = __get_image_lazy
+        if self.load2ram:
+            self.image_frames = [ __get_image_lazy(i)
+                                    for i in range(len(self.image_paths))]
+            self.get_image_func = __get_image_eager
+
 
 
     def __len__(self):
         return len(self.image_paths)
 
     def __getitem__(self, index):
-        image = PIL.Image.open(self.image_paths[index]).convert("RGB")
+        image = self.get_image_func(index)
         image = self.transform(image)
         return image
 
-
     def get_info(self):
+        print(self.get_image_func)
         return {
             "DataSize": self.__len__(),
             "Transforms": str(self.transform),

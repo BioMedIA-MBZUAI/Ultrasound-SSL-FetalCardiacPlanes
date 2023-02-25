@@ -81,14 +81,20 @@ def getDataLoaders():
 
     transform_obj = BarlowTwinsTransformOrig(image_size=CFG.image_size)
 
-    traindataset = FetalUSFramesDataset( images_folder= CFG.datapath,
-                                    transform = transform_obj)
+    traindataset = FetalUSFramesDataset( hdf5_file= CFG.datapath,
+                                transform = transform_obj,
+                                load2ram = False, frame_skip=5)
+
+
     trainloader  = torch.utils.data.DataLoader( traindataset, shuffle=True,
                         batch_size=CFG.batch_size, num_workers=CFG.workers,
                         pin_memory=True)
 
-    validdataset = FetalUSFramesDataset( images_folder= CFG.valdatapath,
-                                    transform = transform_obj)
+    validdataset = FetalUSFramesDataset( hdf5_file= CFG.valdatapath,
+                                transform = transform_obj,
+                                load2ram = False, frame_skip=5)
+
+
     validloader  = torch.utils.data.DataLoader( validdataset, shuffle=False,
                         batch_size=CFG.batch_size, num_workers=CFG.workers,
                         pin_memory=True)
