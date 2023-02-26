@@ -54,6 +54,7 @@ projector = [8192,8192,8192],
 print_freq_step = 1000, #steps
 ckpt_freq_epoch = 5,  #epochs
 valid_freq_epoch = 5,  #epochs
+disable_tqdm=False,   #True--> to disable
 
 checkpoint_dir= "hypotheses/dumbtpth/",
 resume_training = False,
@@ -61,7 +62,7 @@ resume_training = False,
 
 ## --------
 parser = argparse.ArgumentParser(description='Barlow Twins Training')
-parser.add_argument('--load_json', default='configs/bt-train-CFG.json', type=str, metavar='JSON',
+parser.add_argument('--load-json', default='configs/bt-train-CFG.json', type=str, metavar='JSON',
     help='Load settings from file in json format. Command line options override values in file.')
 
 args = parser.parse_args()
@@ -167,7 +168,9 @@ def simple_main():
         ## ---- Training Routine ----
         t_running_loss_ = 0
         model.train()
-        for step, (y1, y2) in tqdm(enumerate(trainloader, start=epoch * len(trainloader))):
+        for step, (y1, y2) in tqdm(enumerate(trainloader,
+                                            start=epoch * len(trainloader)),
+                                    disable=CFG.disable_tqdm):
             y1 = y1.to(device, non_blocking=True)
             y2 = y2.to(device, non_blocking=True)
             adjust_learning_rate(CFG, optimizer, trainloader, step)
@@ -206,7 +209,8 @@ def simple_main():
             model.eval()
             v_running_loss_ = 0
             with torch.no_grad():
-                for (y1, y2) in tqdm(validloader,  total=len(validloader)):
+                for (y1, y2) in tqdm(validloader,  total=len(validloader),
+                                    disable=CFG.disable_tqdm):
                     y1 = y1.to(device, non_blocking=True)
                     y2 = y2.to(device, non_blocking=True)
                     loss = model.forward(y1, y2)
