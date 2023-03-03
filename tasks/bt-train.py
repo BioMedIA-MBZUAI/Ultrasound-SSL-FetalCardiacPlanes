@@ -38,6 +38,7 @@ use_amp = True, #automatic Mixed precision
 
 datapath    = "/home/USR/WERK/data/",
 valdatapath = "/home/USR/WERK/valdata/",
+skip_count = 5,
 epochs      = 1000,
 batch_size  = 2048,
 
@@ -84,7 +85,7 @@ def getDataLoaders():
 
     traindataset = FetalUSFramesDataset( hdf5_file= CFG.datapath,
                                 transform = transform_obj,
-                                load2ram = False, frame_skip=5)
+                                load2ram = False, frame_skip=CFG.skip_count)
 
 
     trainloader  = torch.utils.data.DataLoader( traindataset, shuffle=True,
@@ -93,7 +94,7 @@ def getDataLoaders():
 
     validdataset = FetalUSFramesDataset( hdf5_file= CFG.valdatapath,
                                 transform = transform_obj,
-                                load2ram = False, frame_skip=5)
+                                load2ram = False, frame_skip=CFG.skip_count)
 
 
     validloader  = torch.utils.data.DataLoader( validdataset, shuffle=False,
@@ -147,9 +148,13 @@ def simple_main():
     model, optimizer = getModelnOptimizer()
 
     ## Automatically resume from checkpoint if it exists and enabled
-    if os.path.exists(CFG.gWeightPath +'/checkpoint.pth') and CFG.resume_training:
-        ckpt = torch.load(CFG.gWeightPath+'/checkpoint.pth',
-                          map_location='cpu')
+    ckpt = None
+    if CFG.resume_training:
+        try:    ckpt = torch.load(CFG.gWeightPath+'/checkpoint-1.pth', map_location='cpu')
+        except:
+            try:ckpt = torch.load(CFG.gWeightPath+'/checkpoint-0.pth', map_location='cpu')
+            except: print("Check points are not loadable. Starting fresh...")
+    if ckpt:
         start_epoch = ckpt['epoch']
         model.load_state_dict(ckpt['model'])
         optimizer.load_state_dict(ckpt['optimizer'])
@@ -161,6 +166,7 @@ def simple_main():
     ### MODEL TRAINING
     start_time = time.time()
     best_loss = float('inf')
+    wgt_suf   = 0  # foolproof savetime crash
     if CFG.use_amp: scaler = torch.cuda.amp.GradScaler() # for mixed precision
 
     for epoch in range(start_epoch, CFG.epochs):
@@ -199,9 +205,10 @@ def simple_main():
 
         # save checkpoint
         if (epoch+1) % CFG.ckpt_freq_epoch == 0:
+            wgt_suf = (wgt_suf+1) %2
             state = dict(epoch=epoch, model=model.state_dict(),
                             optimizer=optimizer.state_dict())
-            torch.save(state, CFG.gWeightPath +'/checkpoint.pth')
+            torch.save(state, CFG.gWeightPath +f'/checkpoint-{wgt_suf}.pth')
 
 
         ## ---- Validation Routine ----
@@ -220,9 +227,9 @@ def simple_main():
             if valid_epoch_loss < best_loss:
                 best_flag = True
                 best_loss = valid_epoch_loss
-                torch.save(model.backbone.state_dict(), CFG.gWeightPath +'/encoder-weight.pth')
+                torch.save(model.backbone.state_dict(), CFG.gWeightPath +f'/encoder-weight-{wgt_suf}.pth')
 
-            v_stats = dict(epoch=epoch, best=best_flag,
+            v_stats = dict(epoch=epoch, best=best_flag, wgt_suf=wgt_suf,
                             train_loss=train_epoch_loss,
                             valid_loss=valid_epoch_loss)
             lutl.LOG2DICTXT(v_stats, CFG.gLogPath+'/valid-stats.txt')
