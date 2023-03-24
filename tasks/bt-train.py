@@ -115,7 +115,8 @@ def getDataLoaders():
 def getModelnOptimizer():
     model = BarlowTwins(arch=CFG.featx_arch,  projector=CFG.projector,
                         batch_size=CFG.batch_size,
-                        lmbd=CFG.lmbd).to(device)
+                        lmbd=CFG.lmbd,
+                        pretrained=CFG.featx_pretrain).to(device)
 
     optimizer = LARS(model.parameters(), lr=0, weight_decay=CFG.weight_decay,
                      weight_decay_filter=True, lars_adaptation_filter=True)

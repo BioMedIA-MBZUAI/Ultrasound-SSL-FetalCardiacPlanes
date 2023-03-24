@@ -11,14 +11,15 @@ import utilities.runUtils as rutl
 
 ## Neural Net
 class BarlowTwins(nn.Module):
-    def __init__(self, arch, projector, batch_size, lmbd):
+    def __init__(self, arch, projector, batch_size, lmbd, pretrained=None):
         super().__init__()
         rutl.START_SEED()
 
         self.batch_size =  batch_size
         self.lmbd = lmbd
 
-        self.backbone, outfeatx_size = loadResnetBackbone(arch=arch)
+        self.backbone, outfeatx_size = loadResnetBackbone(arch=arch,
+                                            torch_pretrain=pretrained)
 
         # backbone_out_shape + projector_dims
         sizes = [outfeatx_size] + list(projector)
