@@ -1,5 +1,6 @@
-""" Barlow Twin self-supervision training
+""" VIC-reg self-supervision training
 """
+
 import argparse
 import json
 import math
@@ -19,7 +20,7 @@ import torchinfo
 sys.path.append(os.getcwd())
 import utilities.runUtils as rutl
 import utilities.logUtils as lutl
-from algorithms.barlowtwins import BarlowTwins, LARS, adjust_learning_rate
+from algorithms.vicreg import VICReg, LARS, adjust_learning_rate
 from datacode.natural_image_data import Cifar100Dataset
 from datacode.ultrasound_data import FetalUSFramesDataset
 from datacode.augmentations import BarlowTwinsTransformOrig
@@ -38,30 +39,33 @@ use_amp = True, #automatic Mixed precision
 datapath    = "/home/USR/WERK/data/",
 valdatapath = "/home/USR/WERK/valdata/",
 skip_count = 5,
+
 epochs      = 1000,
 batch_size  = 2048,
+workers     = 24,
+image_size  = 200,
 
-learning_rate_weights = 0.2,
-learning_rate_biases  = 0.0048,
+base_lr      = 0.2,
 weight_decay = 1e-6,
-lmbd = 0.0051,
-image_size=256,
+sim_coeff    = 25.0, # Invariance
+std_coeff    = 25.0, # Variance
+cov_coeff    = 1.0,  # Covariance
 
-featx_arch = "resnet50", # "resnet34/50/101"
-featx_pretrain =  None, # "IMGNET-1K" or None
-projector = [8192,8192,8192],
+featx_arch     = "resnet50",
+featx_pretrain =  None, # "IMGNET-1K"
+projector      = [8192,8192,8192],
 
-print_freq_step = 1000, #steps
-ckpt_freq_epoch = 5,  #epochs
-valid_freq_epoch = 5,  #epochs
-disable_tqdm=False,   #True--> to disable
+print_freq_step   = 1000, #steps
+ckpt_freq_epoch   = 5,  #epochs
+valid_freq_epoch  = 5,  #epochs
+disable_tqdm      = False,   #True--> to disable
 
-checkpoint_dir= "hypotheses/-dummy/ssl-barlow/",
-resume_training = False,
+checkpoint_dir  = "hypotheses/-dummy/ssl-vicreg/",
+resume_training = True,
 )
 
 ## --------
-parser = argparse.ArgumentParser(description='Barlow Twins Training')
+parser = argparse.ArgumentParser(description='VIC-Reg ISIC Training')
 parser.add_argument('--load-json', type=str, metavar='JSON',
     help='Load settings from file in json format. Command line options override values in file.')
 
@@ -112,11 +116,14 @@ def getDataLoaders():
 
 
 def getModelnOptimizer():
-    model = BarlowTwins(featx_arch=CFG.featx_arch,
-                        projector_sizes=CFG.projector,
-                        batch_size=CFG.batch_size,
-                        lmbd=CFG.lmbd,
-                        pretrained=CFG.featx_pretrain).to(device)
+    model = VICReg( featx_arch=CFG.featx_arch,
+                    projector_sizes=CFG.projector,
+                    batch_size=CFG.batch_size,
+                    sim_coeff = CFG.sim_coeff,
+                    std_coeff = CFG.std_coeff,
+                    cov_coeff = CFG.cov_coeff,
+                    featx_pretrain=CFG.featx_pretrain,
+                    ).to(device)
 
     optimizer = LARS(model.parameters(), lr=0, weight_decay=CFG.weight_decay,
                      weight_decay_filter=True, lars_adaptation_filter=True)
@@ -176,11 +183,11 @@ def simple_main():
         t_running_loss_ = 0
         model.train()
         for step, (y1, y2) in tqdm(enumerate(trainloader,
-                                    start=epoch * len(trainloader)),
+                                            start=epoch * len(trainloader)),
                                     disable=CFG.disable_tqdm):
             y1 = y1.to(device, non_blocking=True)
             y2 = y2.to(device, non_blocking=True)
-            adjust_learning_rate(CFG, optimizer, trainloader, step)
+            lr_ = adjust_learning_rate(CFG, optimizer, trainloader, step)
             optimizer.zero_grad()
 
             if CFG.use_amp: ## with mixed precision
@@ -196,9 +203,7 @@ def simple_main():
             t_running_loss_+=loss.item()
 
             if step % CFG.print_freq_step == 0:
-                stats = dict(epoch=epoch, step=step,
-                             lr_weights=optimizer.param_groups[0]['lr'],
-                             lr_biases=optimizer.param_groups[1]['lr'],
+                stats = dict(epoch=epoch, step=step, lr= lr_,
                              step_loss=loss.item(),
                              time=int(time.time() - start_time))
                 lutl.LOG2DICTXT(stats, CFG.checkpoint_dir +'/train-stats.txt')

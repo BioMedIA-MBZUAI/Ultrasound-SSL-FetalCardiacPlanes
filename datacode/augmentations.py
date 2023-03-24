@@ -1,7 +1,7 @@
 import random
-from PIL import Image, ImageOps, ImageFilter
+from PIL import ImageOps, ImageFilter
 import torchvision.transforms as torch_transforms
-
+from torchvision.transforms import InterpolationMode
 
 ##========================Natural Images========================================
 
@@ -32,7 +32,8 @@ class Solarization(object):
 class BarlowTwinsTransformOrig:
     def __init__(self, image_size = 224):
         self.transform = torch_transforms.Compose([
-            torch_transforms.RandomResizedCrop(image_size, interpolation=Image.BICUBIC),
+            torch_transforms.RandomResizedCrop(image_size,
+                                    interpolation=InterpolationMode.BICUBIC),
             torch_transforms.RandomHorizontalFlip(p=0.5),
             torch_transforms.RandomApply(
                 [torch_transforms.ColorJitter(brightness=0.4, contrast=0.4,
@@ -47,7 +48,8 @@ class BarlowTwinsTransformOrig:
                                  std=[0.229, 0.224, 0.225])
         ])
         self.transform_prime = torch_transforms.Compose([
-            torch_transforms.RandomResizedCrop(image_size, interpolation=Image.BICUBIC),
+            torch_transforms.RandomResizedCrop(image_size,
+                                    interpolation=InterpolationMode.BICUBIC),
             torch_transforms.RandomHorizontalFlip(p=0.5),
             torch_transforms.RandomApply(
                 [torch_transforms.ColorJitter(brightness=0.4, contrast=0.4,
