@@ -9,8 +9,8 @@ def loadResnetBackbone(arch, torch_pretrain= None, freeze= False):
 
     ## pretrain setting
     if torch_pretrain in ["DEFAULT", "IMGNET-1K"]:
-        torch_pretrain = "DEFAULT"
-    elif torch_pretrain not in [None, "NONE", "none"]:
+        torch_pretrain = "IMAGENET1K_V2"
+    elif torch_pretrain not in [None, "NONE", "none", "None"]:
         raise ValueError("Unknown pretrain weight type requested ", torch_pretrain )
     print("Pretrain Set to ...", torch_pretrain)
 

@@ -14,13 +14,12 @@ from tqdm import tqdm
 from torch import nn, optim
 import torch
 import torchvision
-import torchsummary
+import torchinfo
 
 sys.path.append(os.getcwd())
 import utilities.runUtils as rutl
 import utilities.logUtils as lutl
-from algorithms.lars_optim import LARS, adjust_learning_rate
-from algorithms.barlowtwins import BarlowTwins
+from algorithms.barlowtwins import BarlowTwins, LARS, adjust_learning_rate
 from datacode.natural_image_data import Cifar100Dataset
 from datacode.ultrasound_data import FetalUSFramesDataset
 from datacode.augmentations import BarlowTwinsTransformOrig
@@ -49,7 +48,7 @@ lmbd = 0.0051,
 image_size=256,
 
 featx_arch = "resnet50", # "resnet34/50/101"
-featx_pretrain =  None, # path-to-weights or None
+featx_pretrain =  None, # "IMGNET-1K" or None
 projector = [8192,8192,8192],
 
 print_freq_step = 1000, #steps
@@ -63,7 +62,7 @@ resume_training = False,
 
 ## --------
 parser = argparse.ArgumentParser(description='Barlow Twins Training')
-parser.add_argument('--load-json', default='configs/bt-train-CFG.json', type=str, metavar='JSON',
+parser.add_argument('--load-json', type=str, metavar='JSON',
     help='Load settings from file in json format. Command line options override values in file.')
 
 args = parser.parse_args()
@@ -113,7 +112,8 @@ def getDataLoaders():
 
 
 def getModelnOptimizer():
-    model = BarlowTwins(arch=CFG.featx_arch,  projector=CFG.projector,
+    model = BarlowTwins(featx_arch=CFG.featx_arch,
+                        projector_sizes=CFG.projector,
                         batch_size=CFG.batch_size,
                         lmbd=CFG.lmbd,
                         pretrained=CFG.featx_pretrain).to(device)
@@ -121,7 +121,7 @@ def getModelnOptimizer():
     optimizer = LARS(model.parameters(), lr=0, weight_decay=CFG.weight_decay,
                      weight_decay_filter=True, lars_adaptation_filter=True)
 
-    model_info = torchsummary.summary(model, 2*[(3, CFG.image_size, CFG.image_size)],
+    model_info = torchinfo.summary(model, 2*[(1, 3, CFG.image_size, CFG.image_size)],
                                 verbose=0)
     lutl.LOG2TXT(model_info, CFG.gLogPath +'/misc.txt', console= False)
 

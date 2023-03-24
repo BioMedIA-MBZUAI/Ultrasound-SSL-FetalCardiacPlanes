@@ -28,6 +28,7 @@ class Solarization(object):
             return img
 
 
+## For balowTwins and VICRegularization
 class BarlowTwinsTransformOrig:
     def __init__(self, image_size = 224):
         self.transform = torch_transforms.Compose([
