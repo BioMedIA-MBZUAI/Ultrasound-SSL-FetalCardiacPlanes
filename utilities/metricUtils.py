@@ -3,6 +3,8 @@ import numpy as np
 import torch
 from sklearn import metrics as skmetrics
 
+import matplotlib.pyplot as plt
+
 class MultiClassMetrics():
     def __init__(self, logpath):
         self.tgt = []
@@ -25,19 +27,32 @@ class MultiClassMetrics():
     def get_accuracy(self):
         return skmetrics.accuracy_score(self.tgt, self.prd)
 
+    def get_balanced_accuracy(self):
+        return skmetrics.balanced_accuracy_score(self.tgt, self.prd)
+
+    def get_f1score(self):
+        return skmetrics.f1_score(self.tgt, self.prd, average='macro')
+
     def get_class_report(self):
         return skmetrics.classification_report(self.tgt, self.prd,
                     output_dict= True)
 
-    def get_stat_summary(self):
-        pass
-
+    def get_confusion_matrix(self, save_png = False):
+        lbls = sorted(list(set(self.tgt)))
+        cm = skmetrics.confusion_matrix(self.tgt, self.prd,
+                                labels= lbls)
+        if save_png:
+            disp = skmetrics.ConfusionMatrixDisplay(confusion_matrix=cm,
+                                        display_labels=lbls).plot()
+            plt.savefig(self.logpath+'/confusion.png', bbox_inches='tight')
+        return cm
 
     def _write_csv(self):
         with open(os.path.join(self.logpath, "predict.csv"), 'w') as f:
             writer = csv.writer(f)
             writer.writerow(["target", "prediction"])
             writer.writerows(zip(self.tgt, self.prd))
+
 
 
 if __name__ == "__main__":

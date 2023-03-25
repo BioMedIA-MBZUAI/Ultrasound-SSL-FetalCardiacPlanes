@@ -1,4 +1,4 @@
-""" DataLoader for MBZUAI- BiomedIA Fetal Ultra Sound dataset
+""" Dataset classes for MBZUAI- BiomedIA Fetal Ultra Sound datasets
 """
 
 import os, sys
@@ -11,16 +11,19 @@ import numpy as np
 
 import torch
 from torch.utils.data import Dataset, WeightedRandomSampler
-import torchvision
-import torchvision.transforms as transforms
+import torchvision.transforms as torch_transforms
 from typing import List, Dict
 
 ##---------------------- Generals -----------------------------------------------
 
 def filter_dataframe(self, df, filtering_dict):
+    """ Usage:
+    {"blacklist":{'class':["4ch"],"machine_type":["Voluson E8","Voluson S10 Expert","V830"]}}
+    """
 
     if "blacklist" in filtering_dict and "whitelist" in filtering_dict:
-        raise  Exception("Hey, decide between whitelisting or blacklisting, Can't do both! remove either one")
+        raise  Exception("Hey, decide between whitelisting or blacklisting,"+\
+                         "Can't do both! remove either one")
 
     if "blacklist" in filtering_dict:
         print("blacklisting...")
@@ -46,30 +49,57 @@ def filter_dataframe(self, df, filtering_dict):
     return new_df
 
 
+def get_class_weights(targets, nclasses):
+    """
+    Sample level weights fro balanced Loss statergy or data sampling
+    targets: assumed to be Long ints representing class from dataset
+    """
+
+    n_target = len(targets)
+    count_per_class = np.zeros(nclasses, dtype=int)
+    for c in targets:
+        count_per_class[c] += 1
+    count_per_class[count_per_class==0] = n_target
+
+    # for passing to Loss funcs
+    weight_per_class = np.zeros(nclasses, dtype=float)
+    for i in range(nclasses):
+        weight_per_class[i] = float(n_target) / float(count_per_class[i])
+
+    # for passing to sampler
+    weight_samplewise = np.zeros(n_target, dtype=float)
+    for idx, tgt in enumerate(targets):
+        weight_samplewise[idx] = weight_per_class[tgt]
+
+    return weight_per_class, weight_samplewise
+
+
+
 ## =============================================================================
 ## Classification
 
 
 class ClassifyDataFromCSV(Dataset):
-    def __init__(self, images_folder, csv_path, transform = None,
-                        filtering_dict: Dict[str,Dict[str,List]] = {},
+    def __init__(self, root_folder, csv_path, transform = None,
+                        filtering_dict: Dict[str,Dict[str,List]] = None,
                         ):
         """
         """
+        self.root_folder = root_folder
+        self.df = pd.read_csv(csv_path)
 
-        self.images_folder = images_folder
-        df = pd.read_csv(csv_path)
-        self.df = filter_dataframe(df, filtering_dict)
+        ## Filter based on some condition in dataframes
+        if filtering_dict: self.df = filter_dataframe(self.df, filtering_dict)
 
-        self.class_to_idx ={c:i for i, c in enumerate(sorted( set(
-                                    self.df["class"]  )))}
-        self.images_path =  [ os.path.join(images_folder, c, n) for c, n in zip(
-                                    self.df["class"], self.df["image_name"]) ]
-        self.images_class =list(map(lambda x: self.class_to_idx[x],
+        self.class_to_idx ={c:i for i, c in enumerate(sorted(set(
+                                    self.df["class"])))}
+        self.images_path =  [ os.path.join(root_folder, p)
+                             for p in self.df["image_path"] ]
+        self.targets =list(map(lambda x: self.class_to_idx[x],
                                     list(self.df["class"]) ))
 
         if transform: self.transform = transform
-        else: self.transform = transforms.ToTensor()
+        else: self.transform = torch_transforms.ToTensor()
 
 
     def __len__(self):
@@ -77,72 +107,13 @@ class ClassifyDataFromCSV(Dataset):
 
     def __getitem__(self, index):
         imgpath = self.images_path[index]
-        label = self.images_class[index]
+        target = self.targets[index]
         image = PIL.Image.open(imgpath)
         image = self.transform(image)
-        return image, label
+        return image, target
 
 
 
-def get_balanced_samples_weight(images, nclasses):
-    """ Sample level weights fro balanced sampling statergy
-    """
-    n_images = len(images)
-    count_per_class = [0] * nclasses
-    for _, image_class in images:
-        count_per_class[image_class] += 1
-    weight_per_class = [0.] * nclasses
-    for i in range(nclasses):
-        weight_per_class[i] = float(n_images) / float(count_per_class[i])
-    weights = [0] * n_images
-    for idx, (image, image_class) in enumerate(images):
-        weights[idx] = weight_per_class[image_class]
-    return weights, weight_per_class
-
-
-def getUSClassifyDataloader(image_folder, csv_file = None,
-                            batch_size = 32, workers = 1,
-                            filtering_dict = {},
-                            balance_class = False,
-                            augument_list = [],
-                            type_=None, # unused
-                            ):
-    infer_f = False
-    shuffle = True
-    if type_ in ['valid', 'test', 'infer']:
-        infer_f = True
-        shuffle = False
-
-    transforms = USClassifyTransform(infer_f, augument_list)
-
-    if csv_file:
-        dataset = ClassifyDataFromCSV( image_folder, csv_file,
-                                        transforms, filtering_dict )
-    else:
-        dataset = torchvision.datasets.ImageFolder(image_folder, transforms)
-        if filtering_dict: raise Exception("BlackListing and Filtering data is not implemented for ImageFolder structure based Loading")
-
-    # print(dataset.class_to_idx)
-    data_info = {"type": type_,
-                 "#ClassId": dataset.class_to_idx ,
-                 "#DatasetSize": dataset.__len__(),
-                 "#Transforms": str(transforms.get_composition()),
-                 "#Filtering": filtering_dict,
-                 }
-
-    sampler = None
-    if balance_class: #TODO: Fix for Custom Dataloader
-        samples_per_epoch = int(1.5 * len(dataset.imgs))
-        s_weight, freq = get_balanced_samples_weight(dataset.imgs, len(dataset.classes))
-        sampler = WeightedRandomSampler(s_weight, samples_per_epoch)
-        data_info["WeightedSampler"] = freq
-        shuffle = False
-
-    loader = torch.utils.data.DataLoader( dataset, shuffle = shuffle,
-                batch_size=batch_size, num_workers=workers, sampler = sampler,
-                drop_last= True, pin_memory=True)
-
-    return loader, data_info
 
 
 ##================ US Video Frames Loader ======================================
@@ -168,7 +139,7 @@ class FetalUSFramesDataset(torch.utils.data.Dataset):
         else: self.transform = torch_transforms.ToTensor()
 
         if hdf5_file:       self._hdf5file_handler(hdf5_file)
-        elif image_folder:  self._imagefolder_handler(images_folder)
+        elif images_folder:  self._imagefolder_handler(images_folder)
         else: raise Exception("No Data info to load")
 
 
