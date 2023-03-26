@@ -21,7 +21,7 @@ import utilities.logUtils as lutl
 from utilities.metricUtils import MultiClassMetrics
 from algorithms.classifiers import ClassifierNet
 from datacode.ultrasound_data import ClassifyDataFromCSV, get_class_weights
-
+from datacode.augmentations import ClassifierTransform
 
 print(f"Pytorch version: {torch.__version__}")
 print(f"cuda version: {torch.version.cuda}")
@@ -35,26 +35,27 @@ CFG = rutl.ObjDict(
 data_folder  = "/home/joseph.benjamin/WERK/data/Fetal-UltraSound/US-Planes-Heart-Views-V3/",
 balance_data = False, #while loading in dataloader; removed
 
-epochs     = 100,
-image_size = 256,
-batch_size = 64,
-workers    = 12,
+epochs        = 100,
+image_size    = 256,
+batch_size    = 128,
+workers       = 16,
 learning_rate = 1e-3,
 weight_decay  = 1e-6,
 
 featx_arch     = "resnet50",
 featx_pretrain =  "IMGNET-1K" , # "IMGNET-1K" or None
-featx_dropout = 0.5,
-clsfy_layers = [5], #First mlp inwill be set w.r.t FeatureExtractor
-clsfy_dropout = 0.0,
+featx_dropout  = 0.5,
+clsfy_layers   = [5], #First mlp inwill be set w.r.t FeatureExtractor
+clsfy_dropout  = 0.0,
 
-checkpoint_dir= "hypotheses/#dummy/Classify/trail-002",
-restart_training=True
+checkpoint_dir   = "hypotheses/#dummy/Classify/trail-002",
+disable_tqdm     = False, #True--> to disable
+restart_training = True
 )
 
 ### -----
 parser = argparse.ArgumentParser(description='Classification task')
-parser.add_argument('--load_json', type=str, metavar='JSON',
+parser.add_argument('--load-json', type=str, metavar='JSON',
     help='Load settings from file in json format. Command line options override values in file.')
 
 args = parser.parse_args()
@@ -71,16 +72,19 @@ CFG.gWeightPath = CFG.checkpoint_dir + '/weights/'
 
 def getDataLoaders(data_percent=None):
     ## Augumentations
+    train_transforms =ClassifierTransform(image_size=CFG.image_size, mode="train")
+    valid_transforms =ClassifierTransform(image_size=CFG.image_size, mode="infer")
 
+    ## Dataset Class
     traindataset = ClassifyDataFromCSV(CFG.data_folder,
                                        CFG.data_folder+"/trainV3.csv",
-                                       transform = None,)
+                                       transform = train_transforms,)
     validdataset = ClassifyDataFromCSV(CFG.data_folder,
                                        CFG.data_folder+"/validV3.csv",
-                                       transform = None,)
+                                       transform = valid_transforms,)
     class_weights, _ = get_class_weights(traindataset.targets, nclasses=5)
 
-    ## Chose P% of data from train data
+    ### Choose P% of data from train data
     if data_percent and (data_percent < 100):
         _idx, used_idx = sk_train_test_split( np.arange(len(traindataset)),
                                 test_size=data_percent/100, random_state=1729,
@@ -89,7 +93,7 @@ def getDataLoaders(data_percent=None):
         lutl.LOG2CSV(sorted(used_idx), CFG.gLogPath +'/train_indices_used.csv')
 
 
-    ## Loaders
+    ## Loaders Class
     trainloader  = torch.utils.data.DataLoader( traindataset, shuffle=True,
                         batch_size=CFG.batch_size, num_workers=CFG.workers,
                         pin_memory=True)
@@ -98,10 +102,13 @@ def getDataLoaders(data_percent=None):
                         batch_size=CFG.batch_size, num_workers=CFG.workers,
                         pin_memory=True)
 
-    lutl.LOG2DICTXT({"Train-":len(traindataset),
-                     "class-weights":str(class_weights)},
-                     CFG.gLogPath +'/misc.txt')
-    lutl.LOG2DICTXT({"Valid-":len(validdataset)}, CFG.gLogPath +'/misc.txt')
+    lutl.LOG2DICTXT({"Train->":len(traindataset),
+                    "class-weights":str(class_weights),
+                    "TransformsClass": str(train_transforms.get_composition()),
+                    },CFG.gLogPath +'/misc.txt')
+    lutl.LOG2DICTXT({"Valid->":len(validdataset),
+                    "TransformsClass": str(valid_transforms.get_composition()),
+                    },CFG.gLogPath +'/misc.txt')
 
     return trainloader, validloader, class_weights
 
@@ -133,7 +140,6 @@ def getModelnOptimizer():
 
     optimizer = optim.AdamW(model.parameters(), lr=CFG.learning_rate,
                         weight_decay=CFG.weight_decay)
-
     scheduler = False
 
     return model.to(device), optimizer, scheduler
@@ -143,7 +149,6 @@ def getLossFunc(class_weights):
     lossfn = nn.CrossEntropyLoss(weight=torch.tensor(class_weights,
                                         dtype=torch.float32).to(device) )
     return lossfn
-
 
 
 def simple_main(data_percent=None):
@@ -192,12 +197,11 @@ def simple_main(data_percent=None):
     trainMetric = MultiClassMetrics(CFG.gLogPath)
     validMetric = MultiClassMetrics(CFG.gLogPath)
 
-    # scaler = torch.cuda.amp.GradScaler() # for mixed precision
     for epoch in range(start_epoch, CFG.epochs):
 
         ## ---- Training Routine ----
         model.train()
-        for img, tgt in tqdm(trainloader):
+        for img, tgt in tqdm(trainloader, disable=CFG.disable_tqdm):
             img = img.to(device, non_blocking=True)
             tgt = tgt.to(device, non_blocking=True)
             optimizer.zero_grad()
@@ -219,7 +223,7 @@ def simple_main(data_percent=None):
         ## ---- Validation Routine ----
         model.eval()
         with torch.no_grad():
-            for img, tgt in tqdm(validloader):
+            for img, tgt in tqdm(validloader, disable=CFG.disable_tqdm):
                 img = img.to(device, non_blocking=True)
                 tgt = tgt.to(device, non_blocking=True)
                 pred = model.forward(img)
@@ -262,8 +266,76 @@ def simple_main(data_percent=None):
         trainMetric.reset()
         validMetric.reset(best_flag)
 
-if __name__ == '__main__':
-    simple_main()
+    return CFG.gLogPath
 
-    # for p in [100, 50, 25, 10, 5, 1]:
-    #     simple_main(data_percent=p)
+
+
+def simple_test(saved_logpath):
+
+    ### SETUP
+    rutl.START_SEED()
+    gpu = 0
+    torch.cuda.set_device(gpu)
+    torch.backends.cudnn.benchmark = True
+
+    ### DATA ACCESS
+    test_transforms =ClassifierTransform(image_size=CFG.image_size,
+                                        mode="infer")
+    testdataset = ClassifyDataFromCSV(  CFG.data_folder,
+                                        CFG.data_folder+"/testV3.csv",
+                                        transform = test_transforms,)
+    testloader  = torch.utils.data.DataLoader( testdataset,
+                                        shuffle=False,
+                                        batch_size=CFG.batch_size,
+                                        num_workers=CFG.workers,
+                                        pin_memory=True)
+    lutl.LOG2DICTXT({"TEST->":len(testdataset),
+                     "TransformsClass": str(test_transforms.get_composition()),
+                    },saved_logpath +'/test-results.txt')
+
+    ### MODEL
+    model = ClassifierNet(  arch=CFG.featx_arch,
+                            fc_layer_sizes=CFG.clsfy_layers,
+                            feature_dropout=CFG.featx_dropout,
+                            classifier_dropout=CFG.clsfy_dropout)
+    model = model.to(device)
+    model.load_state_dict(torch.load(saved_logpath+"/weights/bestmodel.pth"))
+
+
+    ### MODEL TESTING
+    testMetric = MultiClassMetrics(saved_logpath)
+    model.eval()
+
+    start_time = time.time()
+    with torch.no_grad():
+        for img, tgt in tqdm(testloader, disable=CFG.disable_tqdm):
+            img = img.to(device, non_blocking=True)
+            tgt = tgt.to(device, non_blocking=True)
+            pred = model.forward(img)
+            testMetric.add_entry(torch.argmax(pred, dim=1), tgt)
+
+        ## Log detailed validation
+        detail_stat = dict(
+                timetaken   = int(time.time() - start_time),
+                testf1scr  = testMetric.get_f1score(),
+                testbalacc = testMetric.get_balanced_accuracy(),
+                testacc    = testMetric.get_accuracy(),
+                testreport = testMetric.get_class_report(),
+                testconfus = testMetric.get_confusion_matrix(
+                                        save_png= True, title="test").tolist(),
+            )
+        lutl.LOG2DICTXT(detail_stat, saved_logpath+'/test-results.txt',
+                        console=True)
+
+        testMetric._write_predictions(title="test")
+
+
+
+if __name__ == '__main__':
+
+    # logpth = simple_main()
+    # simple_test(logpth)
+
+    for p in [100, 50, 25, 10, 5, 1]:
+        logpth = simple_main(data_percent=p)
+        simple_test(logpth)
