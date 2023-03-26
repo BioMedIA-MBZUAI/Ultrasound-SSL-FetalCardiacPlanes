@@ -2,7 +2,6 @@ import os, csv
 import numpy as np
 import torch
 from sklearn import metrics as skmetrics
-
 import matplotlib.pyplot as plt
 
 class MultiClassMetrics():
@@ -13,7 +12,7 @@ class MultiClassMetrics():
         self.logpath = logpath
 
     def reset(self, save_results = False):
-        if save_results: self._write_csv()
+        if save_results: self._write_predictions()
         self.__init__(self.logpath)
 
     def add_entry(self, prd, tgt, loss=0):
@@ -37,18 +36,18 @@ class MultiClassMetrics():
         return skmetrics.classification_report(self.tgt, self.prd,
                     output_dict= True)
 
-    def get_confusion_matrix(self, save_png = False):
+    def get_confusion_matrix(self, save_png = False, title=""):
         lbls = sorted(list(set(self.tgt)))
         cm = skmetrics.confusion_matrix(self.tgt, self.prd,
                                 labels= lbls)
         if save_png:
             disp = skmetrics.ConfusionMatrixDisplay(confusion_matrix=cm,
                                         display_labels=lbls).plot()
-            plt.savefig(self.logpath+'/confusion.png', bbox_inches='tight')
+            plt.savefig(self.logpath+f'/{title}Confusion.png', bbox_inches='tight')
         return cm
 
-    def _write_csv(self):
-        with open(os.path.join(self.logpath, "predict.csv"), 'w') as f:
+    def _write_predictions(self, title=""):
+        with open(os.path.join(self.logpath, f"{title}Predict.csv"), 'w') as f:
             writer = csv.writer(f)
             writer.writerow(["target", "prediction"])
             writer.writerows(zip(self.tgt, self.prd))

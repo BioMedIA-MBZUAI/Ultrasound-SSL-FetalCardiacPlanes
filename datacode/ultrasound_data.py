@@ -108,7 +108,7 @@ class ClassifyDataFromCSV(Dataset):
     def __getitem__(self, index):
         imgpath = self.images_path[index]
         target = self.targets[index]
-        image = PIL.Image.open(imgpath)
+        image = PIL.Image.open(imgpath).convert("RGB")
         image = self.transform(image)
         return image, target
 
