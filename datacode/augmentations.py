@@ -1,7 +1,10 @@
 import random
-from PIL import ImageOps, ImageFilter
+import numpy as np
+from PIL import ImageOps, ImageFilter, Image
 import torchvision.transforms as torch_transforms
 from torchvision.transforms import InterpolationMode
+
+import phasepack
 
 ##========================Natural Images========================================
 
@@ -107,3 +110,53 @@ class ClassifierTransform:
 
     def get_composition(self):
         return self.transform
+
+##------------------------------------------------------------------------------
+
+
+def phasecongruence(image):
+    image = np.asarray(image)
+    [M, ori, ft, T] = phasepack.phasecongmono(image,
+                            nscale=5, minWaveLength=5)
+    out = ((M - M.min())/(M.max() - M.min()) *255.0).astype(np.uint8)
+    out = Image.fromarray(out).convert("RGB")
+    return out
+
+
+class CustomInfoMaxTransform:
+    def __init__(self, image_size = 256):
+
+        self.transform = torch_transforms.Compose([
+            torch_transforms.RandomResizedCrop(256,
+                                    interpolation=InterpolationMode.BICUBIC),
+            torch_transforms.RandomHorizontalFlip(p=0.5),
+            torch_transforms.Lambda(phasecongruence),
+            torch_transforms.RandAugment(num_ops=5, magnitude=5),
+            torch_transforms.ToTensor(),
+            torch_transforms.Normalize( mean=[0.485, 0.456, 0.406],
+                                        std=[0.229, 0.224, 0.225])
+        ])
+        self.transform_prime = torch_transforms.Compose([
+            torch_transforms.RandomResizedCrop(image_size,
+                                    interpolation=InterpolationMode.BICUBIC),
+            torch_transforms.RandomHorizontalFlip(p=0.5),
+            torch_transforms.RandomApply(
+                [torch_transforms.ColorJitter(brightness=0.4, contrast=0.4,
+                                    saturation=0.2, hue=0.1)],
+                p=0.8
+            ),
+            torch_transforms.RandomGrayscale(p=0.2),
+            GaussianBlur(p=0.1),
+            Solarization(p=0.2),
+            torch_transforms.ToTensor(),
+            torch_transforms.Normalize( mean=[0.485, 0.456, 0.406],
+                                        std=[0.229, 0.224, 0.225])
+        ])
+
+    def __call__(self, x):
+        y1 = self.transform(x)
+        y2 = self.transform_prime(x)
+        return y1, y2
+
+    def get_composition(self):
+        return (self.transform, self.transform_prime)
