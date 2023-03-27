@@ -23,7 +23,7 @@ import utilities.logUtils as lutl
 from algorithms.vicreg import VICReg, LARS, adjust_learning_rate
 from datacode.natural_image_data import Cifar100Dataset
 from datacode.ultrasound_data import FetalUSFramesDataset
-from datacode.augmentations import BarlowTwinsTransformOrig
+from datacode.augmentations import BarlowTwinsTransformOrig, CustomInfoMaxTransform
 
 
 print(f"Pytorch version: {torch.__version__}")
@@ -84,7 +84,7 @@ CFG.gWeightPath = CFG.checkpoint_dir + '/weights/'
 
 def getDataLoaders():
 
-    transform_obj = BarlowTwinsTransformOrig(image_size=CFG.image_size)
+    transform_obj = CustomInfoMaxTransform(image_size=CFG.image_size)
 
     traindataset = FetalUSFramesDataset( hdf5_file= CFG.datapath,
                                 transform = transform_obj,
