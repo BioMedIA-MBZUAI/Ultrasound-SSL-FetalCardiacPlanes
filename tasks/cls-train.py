@@ -44,6 +44,8 @@ weight_decay  = 1e-6,
 
 featx_arch     = "resnet50",
 featx_pretrain =  "IMGNET-1K" , # "IMGNET-1K" or None
+featx_freeze   = False,
+featx_bnorm    = False,
 featx_dropout  = 0.5,
 clsfy_layers   = [5], #First mlp inwill be set w.r.t FeatureExtractor
 clsfy_dropout  = 0.0,
@@ -123,12 +125,16 @@ def getModelnOptimizer():
 
     model = ClassifierNet(arch=CFG.featx_arch,
                     fc_layer_sizes=CFG.clsfy_layers,
+                    feature_freeze=CFG.featx_freeze,
                     feature_dropout=CFG.featx_dropout,
+                    feature_bnorm=CFG.featx_bnorm,
                     classifier_dropout=CFG.clsfy_dropout,
                     torch_pretrain=torch_pretrain_flag )
 
+    ## load from checkpoints
     if m_state:
-        ret_msg = model.backbone.load_state_dict(m_state, strict=False)
+        m_state = m_state["model"]
+        ret_msg = model.load_state_dict(m_state, strict=False)
         lutl.LOG2TXT(f"Manual Pretrain Loaded...{CFG.featx_pretrain},{str(ret_msg)}",
                      CFG.gLogPath +'/misc.txt')
 

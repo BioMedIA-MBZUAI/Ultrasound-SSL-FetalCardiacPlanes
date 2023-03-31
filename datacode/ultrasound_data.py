@@ -101,6 +101,7 @@ class ClassifyDataFromCSV(Dataset):
         if transform: self.transform = transform
         else: self.transform = torch_transforms.ToTensor()
 
+        print("Class Indexing:", self.class_to_idx)
 
     def __len__(self):
         return len(self.images_path)

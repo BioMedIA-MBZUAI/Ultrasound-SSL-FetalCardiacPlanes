@@ -89,6 +89,8 @@ class ClassifierTransform:
             torch_transforms.Resize(image_size,
                                     interpolation=InterpolationMode.BICUBIC),
             torch_transforms.RandAugment(num_ops=5, magnitude=5),
+            torch_transforms.RandomHorizontalFlip(p=0.5),
+            torch_transforms.RandomVerticalFlip(p=0.5),
             torch_transforms.ToTensor(),
             torch_transforms.Normalize(mean=data_mean, std=data_std)
         ])
@@ -118,7 +120,7 @@ def phasecongruence(image):
     image = np.asarray(image)
     [M, ori, ft, T] = phasepack.phasecongmono(image,
                             nscale=5, minWaveLength=5)
-    out = ((M - M.min())/(M.max() - M.min()) *255.0).astype(np.uint8)
+    out = ((M - M.min())/(M.max() - M.min()+1) *255.0).astype(np.uint8)
     out = Image.fromarray(out).convert("RGB")
     return out
 

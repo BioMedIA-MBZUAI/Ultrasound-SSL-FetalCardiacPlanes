@@ -13,6 +13,7 @@ import utilities.runUtils as rutl
 class ClassifierNet(nn.Module):
     def __init__(self, arch, fc_layer_sizes=[512,1000],
                     feature_dropout=0, classifier_dropout=0,
+                    feature_freeze = False, feature_bnorm = False,
                     torch_pretrain=None):
         super().__init__()
         rutl.START_SEED(7)
@@ -21,8 +22,14 @@ class ClassifierNet(nn.Module):
 
         # Feature Extractor
         self.backbone,self.feat_outsize = loadResnetBackbone(arch=arch,
-                                            torch_pretrain=torch_pretrain )
-        self.fx_dropoutlayer = nn.Dropout(p=feature_dropout)
+                                            torch_pretrain=torch_pretrain,
+                                            freeze=feature_freeze)
+        fx_layers = []
+        if feature_bnorm:
+            fx_layers.append(nn.BatchNorm1d(self.feat_outsize, affine=False))
+        fx_layers.append(nn.Dropout(p=feature_dropout))
+
+        self.featx_proc = nn.Sequential(*fx_layers)
 
         # Classifier
         sizes = [self.feat_outsize] + list(self.fc_layer_sizes)
@@ -39,7 +46,7 @@ class ClassifierNet(nn.Module):
 
     def forward(self, x):
         x = self.backbone(x)
-        x = self.fx_dropoutlayer(x)
+        x = self.featx_proc(x)
         out = self.classifier(x)
 
         return out
