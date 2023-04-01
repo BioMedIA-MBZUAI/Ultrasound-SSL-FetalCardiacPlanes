@@ -5,6 +5,8 @@ __pycache__
 configs/*
 weights/*
 hypotheses/*
+
+*runner.sh
 todo.txt
 
 !README.md

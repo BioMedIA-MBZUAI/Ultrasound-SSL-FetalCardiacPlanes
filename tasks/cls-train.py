@@ -31,9 +31,9 @@ print("Device Used:", device)
 ###============================= Configure and Setup ===========================
 
 CFG = rutl.ObjDict(
-
 data_folder  = "/home/joseph.benjamin/WERK/data/Fetal-UltraSound/US-Planes-Heart-Views-V3/",
 balance_data = False, #while loading in dataloader; removed
+seed = 73,
 
 epochs        = 100,
 image_size    = 256,
@@ -43,7 +43,7 @@ learning_rate = 1e-3,
 weight_decay  = 1e-6,
 
 featx_arch     = "resnet50",
-featx_pretrain =  "IMGNET-1K" , # "IMGNET-1K" or None
+featx_pretrain =  "IMAGENET-1K" , # "IMAGENET-1K" or None
 featx_freeze   = False,
 featx_bnorm    = False,
 featx_dropout  = 0.5,
@@ -55,16 +55,31 @@ disable_tqdm     = False, #True--> to disable
 restart_training = True
 )
 
-### -----
+### ----------------------------------------------------------------------------
+# CLI TAKES PRECENCE OVER JSON CONFIG
+# e.g CLI overwrites the value set for featx-pretain in JSON while running
+# without CLI default values form dict will be used
+
 parser = argparse.ArgumentParser(description='Classification task')
 parser.add_argument('--load-json', type=str, metavar='JSON',
     help='Load settings from file in json format. Command line options override values in file.')
+
+parser.add_argument('--featx-pretrain', type=str, metavar='PATH',
+    help='Set from where to load the prestrained weight from')
+
+parser.add_argument('--checkpoint-dir', type=str, metavar='PATH',
+    help='Load settings from file in json format. Command line options override values in file.')
+
 
 args = parser.parse_args()
 
 if args.load_json:
     with open(args.load_json, 'rt') as f:
         CFG.__dict__.update(json.load(f))
+
+for arg in vars(args):
+    att = getattr(args, arg)
+    if att: CFG.__dict__[arg] = att
 
 ### ----------------------------------------------------------------------------
 CFG.gLogPath = CFG.checkpoint_dir
@@ -160,7 +175,7 @@ def getLossFunc(class_weights):
 def simple_main(data_percent=None):
 
    ### SETUP
-    rutl.START_SEED()
+    rutl.START_SEED(CFG.seed)
     gpu = 0
     torch.cuda.set_device(gpu)
     torch.backends.cudnn.benchmark = True
@@ -300,10 +315,12 @@ def simple_test(saved_logpath):
                     },saved_logpath +'/test-results.txt')
 
     ### MODEL
-    model = ClassifierNet(  arch=CFG.featx_arch,
-                            fc_layer_sizes=CFG.clsfy_layers,
-                            feature_dropout=CFG.featx_dropout,
-                            classifier_dropout=CFG.clsfy_dropout)
+    model = ClassifierNet(arch=CFG.featx_arch,
+                    fc_layer_sizes=CFG.clsfy_layers,
+                    feature_freeze=CFG.featx_freeze,
+                    feature_dropout=CFG.featx_dropout,
+                    feature_bnorm=CFG.featx_bnorm,
+                    classifier_dropout=CFG.clsfy_dropout)
     model = model.to(device)
     model.load_state_dict(torch.load(saved_logpath+"/weights/bestmodel.pth"))
 

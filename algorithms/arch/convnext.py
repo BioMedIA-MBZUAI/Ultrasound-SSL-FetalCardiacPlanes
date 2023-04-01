@@ -242,10 +242,10 @@ class ClassifierNet(nn.Module):
         ## pretrain setting
         pretrain = False; imgnet22k = False
         head_default = None
-        if self.args.featx_pretrain in ["DEFAULT", "IMGNET-1K"]:
+        if self.args.featx_pretrain in ["DEFAULT", "IMAGENET-1K"]:
             pretrain = True
             head_default = 1000
-        elif self.args.featx_pretrain == "IMGNET-22K":
+        elif self.args.featx_pretrain == "IMAGENET-22K":
             pretrain = True; imgnet22k = True
             head_default = 21841
         elif self.args.featx_pretrain not in [None, "NONE", "none"]:

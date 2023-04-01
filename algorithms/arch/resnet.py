@@ -8,7 +8,7 @@ from torch import nn
 def loadResnetBackbone(arch, torch_pretrain= None, freeze= False):
 
     ## pretrain setting
-    if torch_pretrain in ["DEFAULT", "IMGNET-1K"]:
+    if torch_pretrain in ["DEFAULT", "IMAGENET-1K"]:
         torch_pretrain = "DEFAULT" #"IMAGENET1K_V2"
     elif torch_pretrain in [None, "NONE", "none"]:
         torch_pretrain = None
