@@ -32,7 +32,7 @@ print("Device Used:", device)
 
 CFG = rutl.ObjDict(
 
-data_folder  = "/home/joseph.benjamin/WERK/data/Fetal-UltraSound/US-Planes-Heart-Views-V3/",
+data_folder  = "/home/mothilal.asokan/Downloads/HC701/Project/US-Planes-Heart-View/",
 balance_data = False, #while loading in dataloader; removed
 
 epochs        = 100,
@@ -50,7 +50,7 @@ featx_dropout  = 0.5,
 clsfy_layers   = [5], #First mlp inwill be set w.r.t FeatureExtractor
 clsfy_dropout  = 0.0,
 
-checkpoint_dir   = "hypotheses/#dummy/Classify/trail-002",
+checkpoint_dir   = "hypotheses/#dummy/Classify/trail-001",
 disable_tqdm     = False, #True--> to disable
 restart_training = True
 )
