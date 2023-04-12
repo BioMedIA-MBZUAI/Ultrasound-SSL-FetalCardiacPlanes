@@ -303,6 +303,7 @@ def simple_test(saved_logpath):
     model = ClassifierNet(  arch=CFG.featx_arch,
                             fc_layer_sizes=CFG.clsfy_layers,
                             feature_dropout=CFG.featx_dropout,
+                            feature_bnorm=CFG.featx_bnorm,
                             classifier_dropout=CFG.clsfy_dropout)
     model = model.to(device)
     model.load_state_dict(torch.load(saved_logpath+"/weights/bestmodel.pth"))
