@@ -162,3 +162,63 @@ class CustomInfoMaxTransform:
 
     def get_composition(self):
         return (self.transform, self.transform_prime)
+
+
+##------------------------------------------------------------------------------
+
+
+
+class AEncStandardTransform:
+    def __init__(self, image_size = 256):
+
+        data_mean = [0.485, 0.456, 0.406]
+        data_std  = [0.229, 0.224, 0.225]
+
+        train_transform = torch_transforms.Compose([
+            torch_transforms.Resize(image_size,
+                                    interpolation=InterpolationMode.BICUBIC),
+            torch_transforms.RandAugment(num_ops=3, magnitude=3),
+            torch_transforms.RandomHorizontalFlip(p=0.5),
+            torch_transforms.RandomVerticalFlip(p=0.5),
+            torch_transforms.ToTensor(),
+            torch_transforms.Normalize(mean=data_mean, std=data_std)
+        ])
+
+        self.transform = train_transform
+
+
+    def __call__(self, x):
+        y = self.transform(x)
+        return y, y
+
+    def get_composition(self):
+        return self.transform
+
+
+
+class AEncInpaintTransform:
+    def __init__(self, image_size = 256):
+
+        data_mean = [0.485, 0.456, 0.406]
+        data_std  = [0.229, 0.224, 0.225]
+
+        self.transform = torch_transforms.Compose([
+            torch_transforms.Resize(image_size,
+                                    interpolation=InterpolationMode.BICUBIC),
+            torch_transforms.RandAugment(num_ops=1, magnitude=1),
+            torch_transforms.RandomHorizontalFlip(p=0.5),
+            torch_transforms.RandomVerticalFlip(p=0.5),
+            torch_transforms.ToTensor(),
+            torch_transforms.Normalize(mean=data_mean, std=data_std)
+        ])
+
+        self.erase = torch_transforms.RandomErasing(p=1, value="random")
+
+
+    def __call__(self, x):
+        y2 = self.transform(x)
+        y1 = self.erase(y2)
+        return y1, y2
+
+    def get_composition(self):
+        return (self.transform, self.erase)
