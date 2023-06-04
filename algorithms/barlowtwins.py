@@ -22,11 +22,11 @@ class BarlowTwins(nn.Module):
         self.batch_size =  batch_size
         self.lmbd = lmbd
 
-        self.backbone, outfeatx_size = loadResnetBackbone(arch=featx_arch,
+        self.backbone, self.outfeatx_size = loadResnetBackbone(arch=featx_arch,
                                             torch_pretrain=pretrained)
 
         # backbone_out_shape + projector_dims
-        sizes = [outfeatx_size] + list(projector_sizes)
+        sizes = [self.outfeatx_size] + list(projector_sizes)
         layers = []
         for i in range(len(sizes) - 2):
             layers.append(nn.Linear(sizes[i], sizes[i + 1], bias=False))

@@ -84,7 +84,7 @@ CFG.gWeightPath = CFG.checkpoint_dir + '/weights/'
 
 def getDataLoaders():
 
-    transform_obj = CustomInfoMaxTransform(image_size=CFG.image_size)
+    transform_obj = BarlowTwinsTransformOrig(image_size=CFG.image_size)
 
     traindataset = FetalUSFramesDataset( hdf5_file= CFG.datapath,
                                 transform = transform_obj,
