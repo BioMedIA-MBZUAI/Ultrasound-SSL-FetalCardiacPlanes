@@ -22,8 +22,6 @@ sys.path.append(os.getcwd())
 import utilities.runUtils as rutl
 import utilities.logUtils as lutl
 from algorithms.barlowtwins import BarlowTwins, LARS, adjust_learning_rate
-from algorithms.loss.supcon_loss import SupConLoss
-
 from datacode.natural_image_data import Cifar100Dataset
 from datacode.ultrasound_data import FetalUSFramesDataset, ClassifyDataFromCSV
 from datacode.augmentations import BarlowTwinsTransformOrig, ClassifierTransform
@@ -41,28 +39,28 @@ use_amp = True, #automatic Mixed precision
 
 datapath    = "/home/USR/WERK/data/a.hdf5",
 valdatapath = "/home/USR/WERK/valdata/b.hdf5",
-supdatafolder = "/home/USR/WERK/classdata/",
+skip_count  = 5,
 
-skip_count = 5,
 epochs      = 1000,
 batch_size  = 2048,
+workers     = 24,
+image_size  = 256,
 
 learning_rate_weights = 0.2,
 learning_rate_biases  = 0.0048,
 weight_decay = 1e-6,
-lmbd = 0.0051,
-image_size=256,
+lmbd         = 0.0051,
 
 featx_arch = "resnet50", # "resnet34/50/101"
 featx_pretrain =  None, # "IMGNET-1K" or None
 projector = [8192,8192,8192],
 
-print_freq_step = 1000, #steps
-ckpt_freq_epoch = 5,  #epochs
+print_freq_step  = 1000, #steps
+ckpt_freq_epoch  = 5,  #epochs
 valid_freq_epoch = 5,  #epochs
-disable_tqdm=False,   #True--> to disable
+disable_tqdm     = False,   #True--> to disable
 
-checkpoint_dir= "hypotheses/-dummy/ssl-barlow/",
+checkpoint_dir  = "hypotheses/-dummy/ssl-barlow/",
 resume_training = False,
 )
 
@@ -119,44 +117,6 @@ def getDataLoaders():
     return trainloader, validloader
 
 
-def getSupConDataIter():
-    """ Get labelled Classification dataset domain
-    """
-
-    data_percent = 1
-    batch_size = 32
-
-    transform_obj = BarlowTwinsTransformOrig(image_size=CFG.image_size)
-    traindataset = ClassifyDataFromCSV(CFG.supdatafolder,
-                                       CFG.supdatafolder+"/trainV3.csv",
-                                       transform = transform_obj,)
-
-    _idx, used_idx = sk_train_test_split( np.arange(len(traindataset)),
-                            test_size=data_percent/100, random_state=1729,
-                            stratify=traindataset.targets)
-    traindataset = torch.utils.data.Subset(traindataset, sorted(used_idx))
-    lutl.LOG2CSV(sorted(used_idx), CFG.gLogPath +'/ClassifyTrain_indices_used.csv')
-
-    trainloader  = torch.utils.data.DataLoader( traindataset, shuffle=True,
-                    batch_size=batch_size, num_workers=CFG.workers,
-                    pin_memory=True)
-
-    global step_loader
-    step_loader = iter(trainloader)
-
-    def data_next():
-        global step_loader
-        try: step_data = next(step_loader)
-        except StopIteration:
-            step_loader = iter(trainloader)
-            step_data = next(step_loader)
-        return step_data
-
-    return data_next
-
-
-
-
 def getModelnOptimizer():
     model = BarlowTwins(featx_arch=CFG.featx_arch,
                         projector_sizes=CFG.projector,
@@ -194,13 +154,6 @@ def simple_main():
     ### MODEL, OPTIM
     model, optimizer = getModelnOptimizer()
 
-    ### Sup-Con setup
-    supcon_datanext = getSupConDataIter()
-    supcon_loss  = SupConLoss(temperature=1)
-    supcon_layer = nn.Sequential( nn.Linear(model.outfeatx_size, 512),
-                                 nn.ReLU(inplace=True),
-                                 nn.Linear(512, 128)).to(device)
-
     ## Automatically resume from checkpoint if it exists and enabled
     ckpt = None
     if CFG.resume_training:
@@ -234,26 +187,12 @@ def simple_main():
             y1 = y1.to(device, non_blocking=True)
             y2 = y2.to(device, non_blocking=True)
 
-            ## sup-con data
-            ((sc_img1,sc_img2), sc_tgt) = supcon_datanext()
-            sc_img1 = sc_img1.to(device, non_blocking=True)
-            sc_img2 = sc_img2.to(device, non_blocking=True)
-            sc_tgt = sc_tgt.to(device, non_blocking=True)
-
             adjust_learning_rate(CFG, optimizer, trainloader, step)
             optimizer.zero_grad()
 
             if CFG.use_amp: ## with mixed precision
                 with torch.cuda.amp.autocast():
-                    bt_loss = model.forward(y1, y2)
-                    ## sup-con step
-                    sc_pred1 = supcon_layer(model.backbone(sc_img1))
-                    sc_pred2 = supcon_layer(model.backbone(sc_img2))
-                    sc_pred = torch.cat(( sc_pred1.unsqueeze(1),
-                                          sc_pred2.unsqueeze(1) ),1)
-                    sc_loss = supcon_loss(sc_pred, sc_tgt)
-
-                loss = bt_loss + sc_loss
+                    loss = model.forward(y1, y2)
                 scaler.scale(loss).backward()
                 scaler.step(optimizer)
                 scaler.update()
@@ -265,12 +204,10 @@ def simple_main():
 
             if step % CFG.print_freq_step == 0:
                 stats = dict(epoch=epoch, step=step,
-                             lr_weights  = optimizer.param_groups[0]['lr'],
-                             lr_biases   = optimizer.param_groups[1]['lr'],
+                             time=int(time.time() - start_time),
                              step_loss   = loss.item(),
-                             barlow_loss = bt_loss.item(),
-                             supcon_loss = sc_loss.item(),
-                             time=int(time.time() - start_time))
+                             lr_weights  = optimizer.param_groups[0]['lr'],
+                             lr_biases   = optimizer.param_groups[1]['lr'],)
                 lutl.LOG2DICTXT(stats, CFG.checkpoint_dir +'/train-stats.txt')
         train_epoch_loss = t_running_loss_/len(trainloader)
 
@@ -300,7 +237,6 @@ def simple_main():
             if valid_epoch_loss < best_loss:
                 best_flag = True
                 best_loss = valid_epoch_loss
-                # torch.save(model.backbone.state_dict(), CFG.gWeightPath +f'/encoder-weight-{wgt_suf}.pth')
 
             v_stats = dict(epoch=epoch, best=best_flag, wgt_suf=wgt_suf,
                             train_loss=train_epoch_loss,

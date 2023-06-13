@@ -36,14 +36,14 @@ print("Device Used:", device)
 CFG = rutl.ObjDict(
 use_amp = True, #automatic Mixed precision
 
-datapath    = "/home/USR/WERK/data/",
-valdatapath = "/home/USR/WERK/valdata/",
+datapath    = "/home/USR/WERK/data/a.hdf5",
+valdatapath = "/home/USR/WERK/valdata/b.hdf5",
 skip_count = 5,
 
 epochs      = 1000,
 batch_size  = 2048,
 workers     = 24,
-image_size  = 200,
+image_size  = 256,
 
 base_lr      = 0.2,
 weight_decay = 1e-6,
@@ -203,9 +203,10 @@ def simple_main():
             t_running_loss_+=loss.item()
 
             if step % CFG.print_freq_step == 0:
-                stats = dict(epoch=epoch, step=step, lr= lr_,
+                stats = dict(epoch=epoch, step=step,
+                             time=int(time.time() - start_time),
                              step_loss=loss.item(),
-                             time=int(time.time() - start_time))
+                             lr= lr_,)
                 lutl.LOG2DICTXT(stats, CFG.checkpoint_dir +'/train-stats.txt')
         train_epoch_loss = t_running_loss_/len(trainloader)
 
@@ -233,7 +234,6 @@ def simple_main():
             if valid_epoch_loss < best_loss:
                 best_flag = True
                 best_loss = valid_epoch_loss
-                torch.save(model.backbone.state_dict(), CFG.gWeightPath +f'/encoder-weight-{wgt_suf}.pth')
 
             v_stats = dict(epoch=epoch, best=best_flag, wgt_suf=wgt_suf,
                             train_loss=train_epoch_loss,

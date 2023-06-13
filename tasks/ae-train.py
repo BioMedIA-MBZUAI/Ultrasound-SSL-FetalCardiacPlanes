@@ -46,8 +46,8 @@ image_size  = 256,
 
 learning_rate = 1e-3,
 weight_decay  = 1e-6,
-sched_step    = 50
-sched_gamma   = 0.5624   # 1/10 every 200
+sched_step    = 50,
+sched_gamma   = 0.5624,   # 1/10 every 200
 autoenc_map   = "standard",       # standard, denoise, inpaint
 
 
@@ -138,8 +138,11 @@ def getModelnOptimizer():
 
 
 def getLossFunc():
-    lossfn = nn.MSELoss()
-    return lossfn
+    mse = nn.MSELoss()
+    # def scaledMSE(pred, tgt):
+    #     loss = mse(pred, tgt) *256
+    #     return loss
+    return mse
 
 
 
@@ -246,7 +249,6 @@ def simple_main():
             if valid_epoch_loss < best_loss:
                 best_flag = True
                 best_loss = valid_epoch_loss
-                torch.save(model.backbone.state_dict(), CFG.gWeightPath +f'/encoder-weight-{wgt_suf}.pth')
 
             v_stats = dict(epoch=epoch, best=best_flag, wgt_suf=wgt_suf,
                             train_loss=train_epoch_loss,
