@@ -300,6 +300,8 @@ def simple_main():
             with torch.no_grad():
                 for (x0, x1) in tqdm(validloader,  total=len(validloader),
                                     disable=CFG.disable_tqdm):
+                    update_momentum(model.backbone, model.backbone_momentum, m=momentum_val)
+                    update_momentum(model.projection_head, model.projection_head_momentum, m=momentum_val)          
                     x0 = x0.to(device, non_blocking=True)
                     x1 = x1.to(device, non_blocking=True)
                     p0 = model(x0)
