@@ -46,7 +46,7 @@ image_size  = 256,
 
 learning_rate = 1e-3,
 weight_decay  = 1e-6,
-sched_step    = 50,
+sched_step    = 50, ## epoch
 sched_gamma   = 0.5624,   # 1/10 every 200
 autoenc_map   = "standard",       # standard, denoise, inpaint
 
