@@ -55,7 +55,7 @@ featx_arch = "resnet50", # "resnet34/50/101"
 featx_pretrain =  None, # "IMGNET-1K" or None
 projector = [8192,8192,8192],
 
-print_freq_step  = 1000, #steps
+print_freq_step  = 10 , #steps
 ckpt_freq_epoch  = 5,  #epochs
 valid_freq_epoch = 5,  #epochs
 disable_tqdm     = False,   #True--> to disable
@@ -133,6 +133,8 @@ def getModelnOptimizer():
 
     return model.to(device), optimizer
 
+
+### ----------------------------------------------------------------------------
 
 def simple_main():
     ### SETUP

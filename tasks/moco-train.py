@@ -16,7 +16,7 @@ sys.path.append(os.getcwd())
 import utilities.runUtils as rutl
 import utilities.logUtils as lutl
 from algorithms.moco import MoCo
-from algorithms.loss import NTXentLoss
+from algorithms.loss.ssl_losses import NTXentLoss
 from datacode.natural_image_data import Cifar100Dataset
 from datacode.ultrasound_data import FetalUSFramesDataset
 from datacode.augmentations import SimCLRTransform
@@ -33,24 +33,25 @@ use_amp = True, #automatic Mixed precision
 
 datapath    = "/home/mothilal.asokan/Downloads/HC701/Project/US-Fetal-Video-Frames_V1-1/train-all-frames.hdf5",
 valdatapath = "/home/mothilal.asokan/Downloads/HC701/Project/US-Fetal-Video-Frames_V1-1/valid-all-frames.hdf5",
-skip_count = 70,
+skip_count  = 5,
+
 epochs      = 20,
 batch_size  = 288,
-workers = 24,
+workers     = 24,
+image_size  = 256,
 
 weight_decay = 1e-4,
-image_size=256,
-lr=0.03,
+lr           = 0.03,
 
-featx_arch = "resnet50", # "resnet34/50/101"
+featx_arch     = "resnet50", # "resnet34/50/101"
 featx_pretrain = "IMGNET-1K" , # "IMGNET-1K" or None
 
-print_freq_step = 22, #steps
-ckpt_freq_epoch = 5,  #epochs
-valid_freq_epoch = 5,  #epochs
-disable_tqdm=False,   #True--> to disable
+print_freq_step   = 10, #steps
+ckpt_freq_epoch   = 5,  #epochs
+valid_freq_epoch  = 5,  #epochs
+disable_tqdm      = False,   #True--> to disable
 
-checkpoint_dir= "hypotheses/-dummy/",
+checkpoint_dir= "hypotheses/-dummy/ssl-moco",
 resume_training = True,
 )
 
@@ -58,7 +59,6 @@ resume_training = True,
 parser = argparse.ArgumentParser(description='MoCo Training')
 parser.add_argument('--load-json', type=str, metavar='JSON',
     help='Load settings from file in json format. Command line options override values in python file.')
-
 
 
 args = parser.parse_args()
@@ -85,8 +85,8 @@ def getDataLoaders():
     trainloader  = torch.utils.data.DataLoader( traindataset, shuffle=True,
                         batch_size=CFG.batch_size, num_workers=CFG.workers,
                         pin_memory=True,drop_last=True )
-    
-    
+
+
     validdataset = FetalUSFramesDataset( hdf5_file= CFG.valdatapath,
                                 transform = transform_obj,
                                 load2ram = False, frame_skip=CFG.skip_count)
@@ -106,6 +106,7 @@ def getDataLoaders():
 
     return trainloader, validloader
 
+
 def getModelnOptimizer():
     model = MoCo(featx_arch=CFG.featx_arch,
                         pretrained=CFG.featx_pretrain).to(device)
@@ -119,6 +120,7 @@ def getModelnOptimizer():
     lutl.LOG2TXT(model_info, CFG.gLogPath +'/misc.txt', console= False)
 
     return model.to(device), optimizer
+
 
 def update_momentum(model: nn.Module, model_ema: nn.Module, m: float):
     """Updates parameters of `model_ema` with Exponential Moving Average of `model`
@@ -135,6 +137,8 @@ def update_momentum(model: nn.Module, model_ema: nn.Module, m: float):
     """
     for model_ema, model in zip(model_ema.parameters(), model.parameters()):
         model_ema.data = model_ema.data * m + model.data * (1.0 - m)
+
+
 
 def cosine_schedule(
     step: int, max_steps: int, start_value: float, end_value: float
@@ -182,6 +186,10 @@ def cosine_schedule(
         )
     return decay
 
+
+
+### ----------------------------------------------------------------------------
+
 def simple_main():
     ### SETUP
     rutl.START_SEED()
@@ -205,7 +213,7 @@ def simple_main():
     criterion = NTXentLoss(memory_bank_size=4096)
 
 
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
                                     len(trainloader), eta_min=0,last_epoch=-1)
     ## Automatically resume from checkpoint if it exists and enabled
     ckpt = None
@@ -239,9 +247,9 @@ def simple_main():
         for step, (x_query, x_key) in tqdm(enumerate(trainloader,
                                     start=epoch * len(trainloader)),
                                     disable=CFG.disable_tqdm):
-            
+
             update_momentum(model.backbone, model.backbone_momentum, m=momentum_val)
-            update_momentum(model.projection_head, model.projection_head_momentum, m=momentum_val)          
+            update_momentum(model.projection_head, model.projection_head_momentum, m=momentum_val)
             x_query = x_query.to(device, non_blocking=True)
             x_key = x_key.to(device, non_blocking=True)
             optimizer.zero_grad()
@@ -251,7 +259,7 @@ def simple_main():
                     query = model(x_query)
                     key = model.forward_momentum(x_key)
                     loss = criterion(query, key)
-                
+
                 scaler.scale(loss).backward()
                 scaler.step(optimizer)
                 scaler.update()
@@ -270,7 +278,7 @@ def simple_main():
                              time=int(time.time() - start_time))
                 lutl.LOG2DICTXT(stats, CFG.checkpoint_dir +'/train-stats.txt')
         train_epoch_loss = t_running_loss_/len(trainloader)
-        
+
         scheduler.step()
 
         # save checkpoint
@@ -289,7 +297,7 @@ def simple_main():
                 for (x_query, x_key) in tqdm(validloader,  total=len(validloader),
                                     disable=CFG.disable_tqdm):
                     update_momentum(model.backbone, model.backbone_momentum, m=momentum_val)
-                    update_momentum(model.projection_head, model.projection_head_momentum, m=momentum_val)          
+                    update_momentum(model.projection_head, model.projection_head_momentum, m=momentum_val)
                     x_query = x_query.to(device, non_blocking=True)
                     x_key = x_key.to(device, non_blocking=True)
                     query = model(x_query)
@@ -297,11 +305,12 @@ def simple_main():
                     loss = criterion(query, key)
                     v_running_loss_ += loss.item()
             valid_epoch_loss = v_running_loss_/len(validloader)
+
+            # just check
             best_flag = False
             if valid_epoch_loss < best_loss:
                 best_flag = True
                 best_loss = valid_epoch_loss
-                torch.save(model.backbone.state_dict(), CFG.gWeightPath +f'/encoder-weight-{wgt_suf}.pth')
 
             v_stats = dict(epoch=epoch, best=best_flag, wgt_suf=wgt_suf,
                             train_loss=train_epoch_loss,

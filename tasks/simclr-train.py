@@ -30,24 +30,25 @@ use_amp = True, #automatic Mixed precision
 
 datapath    = "/home/mothilal.asokan/Downloads/HC701/Project/US-Fetal-Video-Frames_V1-1/train-all-frames.hdf5",
 valdatapath = "/home/mothilal.asokan/Downloads/HC701/Project/US-Fetal-Video-Frames_V1-1/valid-all-frames.hdf5",
-skip_count = 5,
+skip_count  = 5,
+
 epochs      = 10,
 batch_size  = 160,
-workers = 24,
+workers     = 24,
+image_size  = 256,
 
 weight_decay = 1e-4,
-temp = 0.5,
-image_size=256,
-lr=0.3,
+temp         = 0.5,
+lr           = 0.3,
 
 featx_arch = "resnet50", # "resnet34/50/101"
 featx_pretrain =  None, # "IMGNET-1K" or None
 projector = [512, 128],
 
-print_freq_step = 10, #steps
-ckpt_freq_epoch = 5,  #epochs
-valid_freq_epoch = 5,  #epochs
-disable_tqdm=False,   #True--> to disable
+print_freq_step   = 10, #steps
+ckpt_freq_epoch   = 5,  #epochs
+valid_freq_epoch  = 5,  #epochs
+disable_tqdm      = False,   #True--> to disable
 
 checkpoint_dir= "hypotheses/-dummy/ssl-simclr/",
 resume_training = True,
@@ -84,9 +85,9 @@ def getDataLoaders():
     trainloader  = torch.utils.data.DataLoader( traindataset, shuffle=True,
                         batch_size=CFG.batch_size, num_workers=CFG.workers,
                         pin_memory=True,drop_last=True )
-    
+
     # val_transform_obj = SimCLREvalDataTransform(image_size=CFG.image_size)
-    
+
     validdataset = FetalUSFramesDataset( hdf5_file= CFG.valdatapath,
                                 transform = transform_obj,
                                 load2ram = False, frame_skip=CFG.skip_count)
@@ -123,6 +124,9 @@ def getModelnOptimizer():
 
     return model.to(device), optimizer
 
+
+### ----------------------------------------------------------------------------
+
 def simple_main():
     ### SETUP
     rutl.START_SEED()
@@ -142,7 +146,7 @@ def simple_main():
 
     ### MODEL, OPTIM
     model, optimizer = getModelnOptimizer()
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
                                     len(trainloader), eta_min=0,last_epoch=-1)
     ## Automatically resume from checkpoint if it exists and enabled
     ckpt = None
@@ -174,7 +178,7 @@ def simple_main():
         for step, (y1, y2) in tqdm(enumerate(trainloader,
                                     start=epoch * len(trainloader)),
                                     disable=CFG.disable_tqdm):
-                                    
+
             y1 = y1.to(device, non_blocking=True)
             y2 = y2.to(device, non_blocking=True)
             optimizer.zero_grad()
@@ -198,7 +202,7 @@ def simple_main():
                              time=int(time.time() - start_time))
                 lutl.LOG2DICTXT(stats, CFG.checkpoint_dir +'/train-stats.txt')
         train_epoch_loss = t_running_loss_/len(trainloader)
-        
+
         scheduler.step()
 
         # save checkpoint
@@ -221,11 +225,12 @@ def simple_main():
                     loss = model.forward(y1, y2)
                     v_running_loss_ += loss.item()
             valid_epoch_loss = v_running_loss_/len(validloader)
+
+            # just check
             best_flag = False
             if valid_epoch_loss < best_loss:
                 best_flag = True
                 best_loss = valid_epoch_loss
-                torch.save(model.backbone.state_dict(), CFG.gWeightPath +f'/encoder-weight-{wgt_suf}.pth')
 
             v_stats = dict(epoch=epoch, best=best_flag, wgt_suf=wgt_suf,
                             train_loss=train_epoch_loss,

@@ -34,24 +34,25 @@ use_amp = True, #automatic Mixed precision
 
 datapath    = "/home/mothilal.asokan/Downloads/HC701/Project/US-Fetal-Video-Frames_V1-1/train-all-frames.hdf5",
 valdatapath = "/home/mothilal.asokan/Downloads/HC701/Project/US-Fetal-Video-Frames_V1-1/valid-all-frames.hdf5",
-skip_count = 5,
+skip_count  = 5,
+
 epochs      = 10,
 batch_size  = 160,
-workers = 24,
+workers     = 24,
+image_size  = 256,
 
 weight_decay = 1.5e-6,
-image_size=256,
-lr=0.2,
+lr  = 0.2,
 
-featx_arch = "resnet50", # "resnet34/50/101"
+featx_arch     = "resnet50", # "resnet34/50/101"
 featx_pretrain =  None, # "IMGNET-1K" or None
 
-print_freq_step = 500, #steps
-ckpt_freq_epoch = 5,  #epochs
+print_freq_step  = 500, #steps
+ckpt_freq_epoch  = 5,  #epochs
 valid_freq_epoch = 5,  #epochs
-disable_tqdm=False,   #True--> to disable
+disable_tqdm     = False,   #True--> to disable
 
-checkpoint_dir= "hypotheses/-dummy/ssl/",
+checkpoint_dir  = "hypotheses/-dummy/ssl/",
 resume_training = True,
 )
 
@@ -86,8 +87,8 @@ def getDataLoaders():
     trainloader  = torch.utils.data.DataLoader( traindataset, shuffle=True,
                         batch_size=CFG.batch_size, num_workers=CFG.workers,
                         pin_memory=True,drop_last=True )
-    
-    
+
+
     validdataset = FetalUSFramesDataset( hdf5_file= CFG.valdatapath,
                                 transform = transform_obj,
                                 load2ram = False, frame_skip=CFG.skip_count)
@@ -190,6 +191,8 @@ def criterion(x, y):
    return 2 - 2 * (x * y).sum(dim=-1).mean()
 
 
+### ----------------------------------------------------------------------------
+
 def simple_main():
     ### SETUP
     rutl.START_SEED()
@@ -213,7 +216,7 @@ def simple_main():
     # criterion = NegativeCosineSimilarity()
 
 
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
                                     len(trainloader), eta_min=0,last_epoch=-1)
     ## Automatically resume from checkpoint if it exists and enabled
     ckpt = None
@@ -247,9 +250,9 @@ def simple_main():
         for step, (x0, x1) in tqdm(enumerate(trainloader,
                                     start=epoch * len(trainloader)),
                                     disable=CFG.disable_tqdm):
-            
+
             update_momentum(model.backbone, model.backbone_momentum, m=momentum_val)
-            update_momentum(model.projection_head, model.projection_head_momentum, m=momentum_val)          
+            update_momentum(model.projection_head, model.projection_head_momentum, m=momentum_val)
             x0 = x0.to(device, non_blocking=True)
             x1 = x1.to(device, non_blocking=True)
             optimizer.zero_grad()
@@ -261,7 +264,7 @@ def simple_main():
                     p1 = model(x1)
                     z1 = model.forward_momentum(x1)
                     loss = 0.5 * (criterion(p0, z1) + criterion(p1, z0))
-                
+
                 scaler.scale(loss).backward()
                 scaler.step(optimizer)
                 scaler.update()
@@ -282,7 +285,7 @@ def simple_main():
                              time=int(time.time() - start_time))
                 lutl.LOG2DICTXT(stats, CFG.checkpoint_dir +'/train-stats.txt')
         train_epoch_loss = t_running_loss_/len(trainloader)
-        
+
         scheduler.step()
 
         # save checkpoint
@@ -301,7 +304,7 @@ def simple_main():
                 for (x0, x1) in tqdm(validloader,  total=len(validloader),
                                     disable=CFG.disable_tqdm):
                     update_momentum(model.backbone, model.backbone_momentum, m=momentum_val)
-                    update_momentum(model.projection_head, model.projection_head_momentum, m=momentum_val)          
+                    update_momentum(model.projection_head, model.projection_head_momentum, m=momentum_val)
                     x0 = x0.to(device, non_blocking=True)
                     x1 = x1.to(device, non_blocking=True)
                     p0 = model(x0)
@@ -315,7 +318,6 @@ def simple_main():
             if valid_epoch_loss < best_loss:
                 best_flag = True
                 best_loss = valid_epoch_loss
-                torch.save(model.backbone.state_dict(), CFG.gWeightPath +f'/encoder-weight-{wgt_suf}.pth')
 
             v_stats = dict(epoch=epoch, best=best_flag, wgt_suf=wgt_suf,
                             train_loss=train_epoch_loss,
