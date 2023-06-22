@@ -17,7 +17,7 @@ import utilities.runUtils as rutl
 import utilities.logUtils as lutl
 from algorithms.byol import BYOL
 from algorithms.simclr import LARS
-from algorithms.loss import NegativeCosineSimilarity
+from algorithms.loss.ssl_losses import NegativeCosineSimilarity
 from datacode.natural_image_data import Cifar100Dataset
 from datacode.ultrasound_data import FetalUSFramesDataset
 from datacode.augmentations import SimCLRTransform
