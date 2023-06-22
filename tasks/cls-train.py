@@ -50,7 +50,7 @@ featx_dropout  = 0.5,
 clsfy_layers   = [5], #First mlp inwill be set w.r.t FeatureExtractor
 clsfy_dropout  = 0.0,
 
-checkpoint_dir   = "hypotheses/#dummy/Classify/trail-002",
+checkpoint_dir   = "hypotheses/#dummy/Classify/trail-001",
 disable_tqdm     = False, #True--> to disable
 restart_training = True
 )
