@@ -126,7 +126,8 @@ class ResNetDecoder(nn.Module):
             nn.ConvTranspose2d(in_channels=64, out_channels=3, kernel_size=7, stride=2, padding=3, output_padding=1, bias=False),
         )
 
-        self.gate = nn.Sigmoid()
+        # self.gate = nn.Sigmoid()
+        self.gate = nn.Identity()
 
     def forward(self, x):
 
