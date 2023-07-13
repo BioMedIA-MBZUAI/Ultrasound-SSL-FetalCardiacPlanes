@@ -31,9 +31,9 @@ print("Device Used:", device)
 ###============================= Configure and Setup ===========================
 
 CFG = rutl.ObjDict(
-data_folder  = "/home/joseph.benjamin/WERK/data/Fetal-UltraSound/US-Planes-Heart-Views-V3/",
+data_folder  = "/home/joseph.benjamin/WERK/fetal-ultrasound/data/Fetal-UltraSound/US-Planes-Heart-Views-V3",
 balance_data = False, #while loading in dataloader; removed
-seed = 73,
+seed = 1792,  #previously 73
 
 epochs        = 100,
 image_size    = 256,
@@ -50,7 +50,7 @@ featx_dropout  = 0.5,
 clsfy_layers   = [5], #First mlp inwill be set w.r.t FeatureExtractor
 clsfy_dropout  = 0.0,
 
-checkpoint_dir   = "hypotheses/#dummy/Classify/trail-001",
+checkpoint_dir   = "hypotheses/#dummy/Classify/trail-002",
 disable_tqdm     = False, #True--> to disable
 restart_training = True
 )
@@ -63,6 +63,15 @@ restart_training = True
 parser = argparse.ArgumentParser(description='Classification task')
 parser.add_argument('--load-json', type=str, metavar='JSON',
     help='Load settings from file in json format. Command line options override values in file.')
+
+parser.add_argument('--seed', type=int, metavar='INT',
+    help='add batchnorm between feature extractor and classifier')
+
+parser.add_argument('--featx-freeze', type=bool, metavar='BOOL',
+    help='freeze pretrain or not')
+
+parser.add_argument('--featx-bnorm', type=bool, metavar='BOOL',
+    help='add batchnorm between feature extractor and classifier')
 
 parser.add_argument('--featx-pretrain', type=str, metavar='PATH',
     help='Set from where to load the prestrained weight from')
@@ -104,12 +113,12 @@ def getDataLoaders(data_percent=None):
     ### Choose P% of data from train data
     if data_percent and (data_percent < 100):
         _idx, used_idx = sk_train_test_split( np.arange(len(traindataset)),
-                                test_size=data_percent/100, random_state=1729,
+                                test_size=data_percent/100, random_state=CFG.seed,
                                 stratify=traindataset.targets)
         traindataset = torch.utils.data.Subset(traindataset, sorted(used_idx))
         lutl.LOG2CSV(sorted(used_idx), CFG.gLogPath +'/train_indices_used.csv')
 
-
+    torch.manual_seed(CFG.seed)
     ## Loaders Class
     trainloader  = torch.utils.data.DataLoader( traindataset, shuffle=True,
                         batch_size=CFG.batch_size, num_workers=CFG.workers,
