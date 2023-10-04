@@ -10,9 +10,19 @@ In this work, we aim to clarify the following two questions regarding the dual-e
  - *Which SSL method is effective in utilizing US video data?*
 
 
+## Code
+
+- `tasks` folder containes the individual python scripts whihc is the main entry point to run each SSL experiments and downstream tasks. Please track the imports in these scripts for easier understanding.
+- `configs` parameters can be set if needed with json. Ones used for experiments are updated in releases.
+- `algorithms` contains core SSL codes, backbones and other integral components.
+
+### Downloads
+
+NoteBooks for processing/visualization and config jsons for experiments can be found [here](https://github.com/BioMedIA-MBZUAI/Ultrasound-SSL-FetalCardiacPlanes/releases/tag/ASMUS2023-state)
+
 
 ## Cite Us
-If you use our code or paper insights, consider sighting us :smiley:
+If you find our code or paper findings useful for your research, consider citing us :smiley:
 
 ```
 @InProceedings{JGeoB2023_SSLfetalUS,
@@ -34,8 +44,4 @@ doi={10.1007/978-3-031-44521-7\_7}
 
 ```
 
-### Downloads
-
-NoteBooks for processing/visualization and configd for experiments can be found [here](https://github.com/BioMedIA-MBZUAI/Ultrasound-SSL-FetalCardiacPlanes/releases/tag/ASMUS2023-state)
-
-Code updates: [Mothilal](https://github.com/Mothilal-Asokan/ssl-us) and [JGeoB](https://github.com/JosephGeoBenjamin/Ultrasound-SSL-FetalCardiacPlanes)
+For Code updates: [Mothilal](https://github.com/Mothilal-Asokan/ssl-us) and [JGeoB](https://github.com/JosephGeoBenjamin/Ultrasound-SSL-FetalCardiacPlanes)
